@@ -209,3 +209,16 @@ __marimo__/
 # Claude Code
 .claude/
 memory/
+
+# Visual Studio
+.vscode/
+*.code-workspace
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Poetry
+poetry.lock
+poetry.toml

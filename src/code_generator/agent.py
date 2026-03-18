@@ -1,7 +1,15 @@
 """Claude agent with JIRA and Git MCP integration for code generation."""
 
 import anyio
-from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage, SystemMessage
+from claude_agent_sdk import (
+    query,
+    ClaudeAgentOptions,
+    ResultMessage,
+    SystemMessage,
+    AssistantMessage,
+    TextBlock,
+    ToolUseBlock,
+)
 
 from .config import settings
 
@@ -39,9 +47,14 @@ When given a JIRA ticket or task description:
 2. Use the Git MCP tools to understand the current codebase: branches, recent commits, file structure
 3. Write clean, well-tested code that satisfies the acceptance criteria and description in the JIRA ticket
 4. Follow the coding conventions visible in the existing codebase
-5. Create a summary of what you implemented and any assumptions made
+5. Run the existing test suite and any new tests you wrote using Bash
+6. End your response with a summary in this exact format:
 
-Always check the existing code before writing new code to avoid duplication."""
+## Summary
+<what was implemented>
+
+## Test Results
+<paste the test output or "No tests found" if none exist>"""
 
 
 async def generate_code(prompt: str, cwd: str = ".") -> str:
@@ -59,11 +72,22 @@ async def generate_code(prompt: str, cwd: str = ".") -> str:
 
     result = ""
     async for message in query(prompt=prompt, options=options):
-        if isinstance(message, ResultMessage):
-            result = message.result
-        elif isinstance(message, SystemMessage) and message.subtype == "init":
+        if isinstance(message, SystemMessage) and message.subtype == "init":
             session_id = message.data.get("session_id", "")
-            print(f"Session started: {session_id}")
+            print(f"Session: {session_id}\n")
+
+        elif isinstance(message, AssistantMessage):
+            for block in message.content:
+                if isinstance(block, TextBlock) and block.text.strip():
+                    print(f"Claude: {block.text.strip()}\n")
+                elif isinstance(block, ToolUseBlock):
+                    input_summary = ", ".join(
+                        f"{k}={v!r}" for k, v in (block.input or {}).items()
+                    )
+                    print(f"  > {block.name}({input_summary})")
+
+        elif isinstance(message, ResultMessage):
+            result = message.result
 
     return result
 

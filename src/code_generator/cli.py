@@ -2,6 +2,8 @@
 
 import click
 from .agent import run
+from .jira import extract_issue_key, post_comment
+from .config import settings
 
 
 @click.command()
@@ -20,6 +22,14 @@ def main(prompt: str, cwd: str) -> None:
     """
     result = run(prompt, cwd=cwd)
     click.echo(result)
+
+    issue_key = extract_issue_key(prompt)
+    if issue_key and settings.jira_url and settings.jira_api_token:
+        try:
+            post_comment(issue_key, result)
+            click.echo(f"\nPosted comment to {issue_key}.")
+        except Exception as e:
+            click.echo(f"\nWarning: could not post JIRA comment — {e}", err=True)
 
 
 if __name__ == "__main__":
