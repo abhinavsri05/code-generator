@@ -1,2 +1,2 @@
 # code-generator
-Integrates with JIRA and Git to auto generated code
+Integrates with JIRA and Git to auto generate code
