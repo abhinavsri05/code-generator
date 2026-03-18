@@ -1,0 +1,32 @@
+[project]
+name = "code-generator"
+version = "0.1.0"
+description = "AI code generator using Claude with JIRA and Git MCP"
+authors = [
+    {name = "Abhinav"}
+]
+readme = "README.md"
+requires-python = "^3.11"
+dependencies = [
+    "claude-agent-sdk (>=0.1.49,<0.2.0)",
+    "python-dotenv (>=1.2.2,<2.0.0)",
+    "anyio (>=4.12.1,<5.0.0)",
+    "click (>=8.0.0,<9.0.0)"
+]
+
+
+[project.scripts]
+code-gen = "code_generator.cli:main"
+
+[tool.poetry]
+packages = [{include = "code_generator", from = "src"}]
+
+[tool.poetry.scripts]
+code-gen = "code_generator.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
