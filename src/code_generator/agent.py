@@ -47,8 +47,9 @@ When given a JIRA ticket or task description:
 2. Use the Git MCP tools to understand the current codebase: branches, recent commits, file structure
 3. Write clean, well-tested code that satisfies the acceptance criteria and description in the JIRA ticket
 4. Follow the coding conventions visible in the existing codebase
-5. Run the existing test suite and any new tests you wrote using Bash
-6. End your response with a summary in this exact format:
+5. IMPORTANT: The current working directory IS the root of the target repository. Write all files directly into it using relative paths (e.g. `src/main/Foo.java`, `pom.xml`). Do NOT create a wrapper subdirectory (e.g. do not do `my-library/src/...` — just `src/...`). Never use absolute paths or create files outside the current working directory.
+6. Run the existing test suite and any new tests you wrote using Bash
+7. End your response with a summary in this exact format:
 
 ## Summary
 <what was implemented>
@@ -63,7 +64,6 @@ async def generate_code(prompt: str, cwd: str = ".") -> str:
 
     options = ClaudeAgentOptions(
         cwd=cwd,
-        allowed_tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
         mcp_servers=mcp_servers,
         system_prompt=SYSTEM_PROMPT,
         permission_mode="bypassPermissions",
