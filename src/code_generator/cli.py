@@ -1,5 +1,6 @@
 """CLI entry point for the code generator."""
 
+import subprocess
 import click
 from .agent import run
 from .jira import extract_issue_key, post_comment
@@ -30,6 +31,9 @@ def main(prompt: str, cwd: str) -> None:
             click.echo(f"\nPosted comment to {issue_key}.")
         except Exception as e:
             click.echo(f"\nWarning: could not post JIRA comment — {e}", err=True)
+
+    if click.confirm("\nOpen changes in VS Code?", default=False):
+        subprocess.Popen(["code", cwd])
 
 
 if __name__ == "__main__":

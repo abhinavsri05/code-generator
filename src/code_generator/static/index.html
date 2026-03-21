@@ -7,259 +7,776 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #0f1117;
-      color: #e2e8f0;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px 16px;
+    :root {
+      --bg:           #f1f5f9;
+      --surface:      #ffffff;
+      --border:       #e2e8f0;
+      --border-focus: #4338ca;
+      --text-primary: #0f172a;
+      --text-muted:   #64748b;
+      --primary:      #4338ca;
+      --primary-hover:#3730a3;
+      --radius:       10px;
+
+      --c-session: #64748b;
+      --c-tool:    #0369a1;
+      --c-text:    #1e293b;
+      --c-result:  #065f46;
+      --c-info:    #92400e;
+      --c-error:   #9a3412;
+      --c-done:    #94a3b8;
+
+      --diff-add-bg:    #eff6ff;
+      --diff-add-text:  #1e40af;
+      --diff-add-gutter:#bfdbfe;
+      --diff-del-bg:    #fefce8;
+      --diff-del-text:  #854d0e;
+      --diff-del-gutter:#fde68a;
+      --diff-hunk-bg:   #f8fafc;
+      --diff-hunk-text: #64748b;
+      --diff-ctx-text:  #374151;
     }
 
-    h1 {
-      font-size: 1.6rem;
-      font-weight: 600;
-      margin-bottom: 32px;
-      color: #f8fafc;
-      letter-spacing: -0.02em;
-    }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text-primary); }
 
-    .card {
-      background: #1e2130;
-      border: 1px solid #2d3148;
-      border-radius: 12px;
-      padding: 28px;
-      width: 100%;
-      max-width: 680px;
+    /* ── Top bar ── */
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0; height: 52px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 24px; gap: 10px; z-index: 10;
     }
-
-    label {
-      display: block;
-      font-size: 0.8rem;
-      font-weight: 500;
-      color: #94a3b8;
-      margin-bottom: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+    .topbar-icon {
+      width: 28px; height: 28px; background: var(--primary); border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
     }
+    .topbar-icon svg { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .topbar-title { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+    .topbar-sub   { font-size: 0.78rem; color: var(--text-muted); margin-left: 2px; }
 
+    /* ── Layout ── */
+    .layout { display: flex; height: 100vh; padding-top: 52px; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 300px; flex-shrink: 0; background: var(--surface);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      padding: 24px 20px; overflow-y: auto;
+    }
+    .sidebar-section-title { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 16px; }
+    .field { margin-bottom: 16px; }
+    .field label { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 500; color: var(--text-muted); margin-bottom: 5px; }
+    .field label svg { width: 13px; height: 13px; flex-shrink: 0; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     input, textarea {
-      width: 100%;
-      background: #111827;
-      border: 1px solid #374151;
-      border-radius: 8px;
-      color: #e2e8f0;
-      font-size: 0.95rem;
-      padding: 10px 14px;
-      outline: none;
-      transition: border-color 0.15s;
-      margin-bottom: 18px;
-      font-family: inherit;
+      width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-primary); font-size: 0.88rem; padding: 9px 12px; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s; font-family: inherit;
     }
+    input:focus, textarea:focus { border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(67,56,202,0.08); }
+    input::placeholder, textarea::placeholder { color: #94a3b8; }
+    textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+    .divider { height: 1px; background: var(--border); margin: 8px 0 20px; }
 
-    input:focus, textarea:focus {
-      border-color: #6366f1;
+    /* ── Attachments ── */
+    .attach-btn {
+      display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 500;
+      color: var(--primary); background: none; border: 1px dashed #c7d2fe; border-radius: 8px;
+      padding: 7px 12px; cursor: pointer; width: 100%; transition: background 0.12s, border-color 0.12s;
     }
+    .attach-btn:hover { background: #f0f0ff; border-color: var(--primary); }
+    .attach-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 
-    textarea {
-      resize: vertical;
-      min-height: 80px;
+    .attachments-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+
+    .attachment-chip {
+      display: flex; align-items: center; gap: 8px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; overflow: hidden;
     }
-
-    button {
-      width: 100%;
-      background: #6366f1;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      padding: 12px;
-      cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
+    .attachment-chip-thumb {
+      width: 32px; height: 32px; border-radius: 4px; object-fit: cover; flex-shrink: 0;
+      border: 1px solid var(--border);
     }
-
-    button:hover:not(:disabled) { background: #4f46e5; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    #kill-btn {
-      background: #dc2626;
-      display: none;
-      margin-top: 10px;
+    .attachment-chip-icon {
+      width: 32px; height: 32px; border-radius: 4px; background: #e0e7ff;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
-    #kill-btn:hover:not(:disabled) { background: #b91c1c; }
-    #kill-btn.visible { display: block; }
-
-    /* Output panel */
-    #output-section {
-      width: 100%;
-      max-width: 680px;
-      margin-top: 24px;
-      display: none;
+    .attachment-chip-icon svg { width: 14px; height: 14px; fill: none; stroke: var(--primary); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .attachment-chip-name { flex: 1; min-width: 0; font-size: 0.76rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .attachment-chip-remove {
+      background: none; border: none; cursor: pointer; padding: 2px; color: #94a3b8;
+      display: flex; align-items: center; flex-shrink: 0; border-radius: 4px;
+      transition: color 0.1s, background 0.1s;
     }
+    .attachment-chip-remove:hover { color: #ef4444; background: #fee2e2; }
+    .attachment-chip-remove svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; }
 
-    #output-section.visible { display: block; }
-
-    .output-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
+    .btn {
+      width: 100%; border: none; border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+      padding: 11px; cursor: pointer; transition: background 0.15s, opacity 0.15s, box-shadow 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
     }
+    .btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); box-shadow: 0 2px 8px rgba(67,56,202,0.3); }
+    .btn-danger  { background: #fff; color: #b45309; border: 1px solid #fde68a; margin-top: 8px; display: none; }
+    .btn-danger:hover:not(:disabled) { background: #fffbeb; }
+    .btn-danger.visible { display: flex; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    #timer {
-      font-size: 0.8rem;
-      color: #94a3b8;
-      font-variant-numeric: tabular-nums;
+    /* status badge — shown during run and after completion */
+    .status-badge { display: none; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-muted); margin-top: 14px; font-variant-numeric: tabular-nums; }
+    .status-badge.visible { display: flex; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #0369a1; flex-shrink: 0; animation: pulse 1.4s ease-in-out infinite; }
+    .status-badge.done .status-dot { animation: none; background: #22c55e; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+    .status-tokens { margin-left: 4px; color: #64748b; font-size: 0.75rem; }
+
+    /* ── Output pane ── */
+    .output-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+
+    /* ── Tab bar ── */
+    .tab-bar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: stretch; padding: 0 24px; gap: 0; flex-shrink: 0;
     }
-
-    .output-header span {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: #94a3b8;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+    .tab-btn {
+      background: none; border: none; cursor: pointer; padding: 0 4px;
+      font-size: 0.83rem; font-weight: 500; color: var(--text-muted);
+      display: flex; align-items: center; gap: 6px; height: 44px;
+      border-bottom: 2px solid transparent; margin-right: 20px;
+      transition: color 0.12s, border-color 0.12s;
     }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #22c55e;
-      display: none;
+    .tab-btn:hover { color: var(--text-primary); }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+    .tab-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .tab-badge {
+      font-size: 0.68rem; font-weight: 700; background: #dbeafe; color: #1d4ed8;
+      border-radius: 99px; padding: 1px 7px; display: none;
     }
+    .tab-badge.visible { display: inline-block; }
 
-    .status-dot.running {
-      display: block;
-      animation: pulse 1.2s ease-in-out infinite;
+    .tab-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .copy-btn, .vscode-btn {
+      font-size: 0.78rem; font-weight: 500; color: var(--primary);
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 10px; cursor: pointer; transition: background 0.12s, border-color 0.12s;
+      display: none; align-items: center; gap: 5px;
     }
+    .copy-btn.visible { display: block; }
+    .vscode-btn.visible { display: flex; }
+    .copy-btn:hover, .vscode-btn:hover { background: #f0f0ff; border-color: #c7d2fe; }
+    .vscode-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
+    /* ── Tab panels ── */
+    .tab-panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+    .tab-panel.active { display: flex; }
+
+    /* Output log */
+    .log-wrap { flex: 1; overflow-y: auto; padding: 20px 24px; }
+    .log-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); gap: 10px; user-select: none; }
+    .log-empty svg { width: 36px; height: 36px; stroke: #cbd5e1; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .log-empty p { font-size: 0.88rem; color: #94a3b8; }
+    #log { display: flex; flex-direction: column; gap: 1px; }
+
+    .log-line { display: flex; gap: 8px; padding: 3px 0; font-family: "JetBrains Mono","Fira Code","Cascadia Code",ui-monospace,monospace; font-size: 0.8rem; line-height: 1.65; word-break: break-word; }
+    .log-prefix { flex-shrink: 0; width: 16px; font-weight: 700; text-align: center; user-select: none; }
+    .log-body { flex: 1; min-width: 0; white-space: pre-wrap; }
+
+    .line-session .log-prefix, .line-session .log-body { color: var(--c-session); }
+    .line-tool    .log-prefix, .line-tool    .log-body { color: var(--c-tool); }
+    .line-text    .log-prefix, .line-text    .log-body { color: var(--c-text); }
+    .line-result  .log-prefix, .line-result  .log-body { color: var(--c-result); font-weight: 500; }
+    .line-info    .log-prefix, .line-info    .log-body { color: var(--c-info); }
+    .line-error   .log-prefix, .line-error   .log-body { color: var(--c-error); }
+    .line-done    .log-prefix, .line-done    .log-body { color: var(--c-done); font-style: italic; }
+    .result-sep { height: 1px; background: linear-gradient(to right, #a7f3d0, transparent); margin: 10px 0 6px; }
+
+    /* ── Changes tab: split layout ── */
+    .changes-layout { flex: 1; display: flex; overflow: hidden; }
+
+    .changes-tree {
+      width: 230px; flex-shrink: 0; background: var(--surface);
+      border-right: 1px solid var(--border); overflow-y: auto;
+      display: flex; flex-direction: column;
     }
-
-    #log {
-      background: #0d1117;
-      border: 1px solid #2d3148;
-      border-radius: 10px;
-      padding: 16px;
-      font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
-      font-size: 0.8rem;
-      line-height: 1.6;
-      max-height: 520px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
+    .changes-tree-header {
+      padding: 12px 14px 8px; font-size: 0.65rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted);
+      user-select: none; flex-shrink: 0;
     }
+    .changes-tree-empty {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 10px; padding: 24px; user-select: none;
+    }
+    .changes-tree-empty svg { width: 28px; height: 28px; stroke: #cbd5e1; fill: none; stroke-width: 1.5; }
+    .changes-tree-empty p { font-size: 0.8rem; color: #94a3b8; text-align: center; }
 
-    .line-session { color: #64748b; }
-    .line-tool    { color: #38bdf8; }
-    .line-text    { color: #e2e8f0; }
-    .line-result  { color: #86efac; }
-    .line-info    { color: #fbbf24; }
-    .line-error   { color: #f87171; }
-    .line-done    { color: #64748b; font-style: italic; }
+    .tree-item {
+      display: flex; align-items: center; gap: 7px; padding: 6px 14px;
+      cursor: pointer; border-left: 2px solid transparent;
+      transition: background 0.1s; min-width: 0;
+    }
+    .tree-item:hover { background: var(--bg); }
+    .tree-item.active { background: #eff6ff; border-left-color: var(--primary); }
+    .tree-item svg { width: 12px; height: 12px; fill: none; stroke: var(--text-muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .tree-item.active svg { stroke: var(--primary); }
+    .tree-item-name {
+      flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-family: "JetBrains Mono","Fira Code",ui-monospace,monospace;
+      font-size: 0.76rem; color: var(--text-primary);
+    }
+    .tree-item.active .tree-item-name { color: var(--primary); font-weight: 600; }
+    .tree-item-stats { display: flex; gap: 4px; flex-shrink: 0; font-size: 0.7rem; font-family: monospace; }
+    .tree-stat-add { color: #1d4ed8; font-weight: 700; }
+    .tree-stat-del { color: #b45309; font-weight: 700; }
+
+    .changes-viewer { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+    /* ── Diff viewer ── */
+    .diff-wrap { flex: 1; overflow-y: auto; padding: 16px 20px; }
+    .diff-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 10px; user-select: none; }
+    .diff-empty svg { width: 36px; height: 36px; stroke: #cbd5e1; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    .diff-empty p { font-size: 0.88rem; color: #94a3b8; }
+
+    .diff-file { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+
+    .diff-file-header {
+      background: #f8fafc; border-bottom: 1px solid var(--border);
+      padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+      font-family: "JetBrains Mono","Fira Code",ui-monospace,monospace; font-size: 0.8rem;
+    }
+    .diff-file-header svg { width: 13px; height: 13px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .diff-filename { font-weight: 600; color: var(--text-primary); }
+    .diff-stat { margin-left: auto; display: flex; gap: 8px; font-size: 0.75rem; }
+    .diff-stat-add { color: #1d4ed8; font-weight: 600; }
+    .diff-stat-del { color: #b45309; font-weight: 600; }
+
+    .diff-table { width: 100%; border-collapse: collapse; font-family: "JetBrains Mono","Fira Code",ui-monospace,monospace; font-size: 0.78rem; line-height: 1.6; }
+    .diff-table td { padding: 0; vertical-align: top; }
+
+    .diff-gutter {
+      width: 44px; min-width: 44px; text-align: right; padding: 1px 8px;
+      color: #94a3b8; user-select: none; border-right: 1px solid var(--border);
+      font-size: 0.72rem; white-space: nowrap;
+    }
+    .diff-code { padding: 1px 12px; white-space: pre-wrap; word-break: break-all; color: var(--diff-ctx-text); }
+    .diff-sign { width: 20px; min-width: 20px; text-align: center; padding: 1px 0; font-weight: 700; user-select: none; }
+
+    .diff-row-add .diff-gutter { background: var(--diff-add-gutter); }
+    .diff-row-add .diff-sign   { background: var(--diff-add-bg); color: var(--diff-add-text); }
+    .diff-row-add .diff-code   { background: var(--diff-add-bg); color: var(--diff-add-text); }
+
+    .diff-row-del .diff-gutter { background: var(--diff-del-gutter); }
+    .diff-row-del .diff-sign   { background: var(--diff-del-bg); color: var(--diff-del-text); }
+    .diff-row-del .diff-code   { background: var(--diff-del-bg); color: var(--diff-del-text); }
+
+    .diff-row-hunk .diff-gutter { background: var(--diff-hunk-bg); }
+    .diff-row-hunk .diff-sign   { background: var(--diff-hunk-bg); color: var(--diff-hunk-text); }
+    .diff-row-hunk .diff-code   { background: var(--diff-hunk-bg); color: var(--diff-hunk-text); font-style: italic; }
+
+    .diff-legend {
+      display: flex; gap: 16px; padding: 10px 20px;
+      font-size: 0.75rem; color: var(--text-muted); flex-shrink: 0;
+      border-bottom: 1px solid var(--border); background: var(--surface);
+    }
+    .diff-legend-item { display: flex; align-items: center; gap: 5px; }
+    .diff-legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
   </style>
 </head>
 <body>
-  <h1>Code Generator</h1>
 
-  <div class="card">
-    <label for="jira-key">JIRA Ticket</label>
-    <input id="jira-key" type="text" placeholder="e.g. SCRUM-1" />
-
-    <label for="repo-path">Repository Path</label>
-    <input id="repo-path" type="text" placeholder="/Users/you/projects/my-repo" />
-
-    <label for="context">Additional Context <span style="color:#4b5563;font-weight:400;text-transform:none">(optional)</span></label>
-    <textarea id="context" placeholder="Any extra requirements or notes for Claude…"></textarea>
-
-    <button id="run-btn" onclick="runGenerate()">Generate Code</button>
-    <button id="kill-btn" onclick="killJob()">Kill Execution</button>
-  </div>
-
-  <div id="output-section">
-    <div class="output-header">
-      <span>Live Output</span>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span id="timer"></span>
-        <div class="status-dot" id="status-dot"></div>
-      </div>
+  <header class="topbar">
+    <div class="topbar-icon">
+      <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
     </div>
-    <div id="log"></div>
+    <span class="topbar-title">Code Generator</span>
+    <span class="topbar-sub">Claude with JIRA, Git, and Confluence Integration</span>
+  </header>
+
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <p class="sidebar-section-title">Configuration</p>
+
+      <div class="field">
+        <label>
+          <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+          JIRA Ticket
+        </label>
+        <input id="jira-key" type="text" placeholder="e.g. SCRUM-1" autocomplete="off" />
+      </div>
+
+      <div class="field">
+        <label>
+          <svg viewBox="0 0 24 24"><path d="M3 3h6l2 3H21a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/></svg>
+          Repository Path
+        </label>
+        <input id="repo-path" type="text" placeholder="/Users/you/projects/my-repo" />
+      </div>
+
+      <div class="field">
+        <label>
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Context
+          <span style="font-weight:400;text-transform:none;font-size:0.75rem;color:#94a3b8">(optional)</span>
+        </label>
+        <textarea id="context" placeholder="Any extra requirements or notes for Claude…"></textarea>
+      </div>
+
+      <div class="field">
+        <label>
+          <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          Attachments
+          <span style="font-weight:400;text-transform:none;font-size:0.75rem;color:#94a3b8">(optional)</span>
+        </label>
+        <!-- hidden inputs, triggered by buttons -->
+        <input id="file-doc"   type="file" accept=".md,.txt,.pdf,.csv,.json" multiple style="display:none" onchange="handleFileSelect(this,'text')" />
+        <input id="file-image" type="file" accept="image/*" multiple style="display:none" onchange="handleFileSelect(this,'image')" />
+        <div style="display:flex;gap:6px">
+          <button class="attach-btn" style="flex:1" onclick="document.getElementById('file-doc').click()">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Docs
+          </button>
+          <button class="attach-btn" style="flex:1" onclick="document.getElementById('file-image').click()">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            Images
+          </button>
+        </div>
+        <div class="attachments-list" id="attachments-list"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <button id="run-btn" class="btn btn-primary" onclick="runGenerate()">
+        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Generate Code
+      </button>
+      <button id="kill-btn" class="btn btn-danger" onclick="killJob()">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+        Stop Execution
+      </button>
+
+      <div class="status-badge" id="status-badge">
+        <div class="status-dot"></div>
+        <span id="timer">0s</span>
+        <span id="status-label" style="color:#94a3b8">· running</span>
+        <span class="status-tokens" id="status-tokens" style="display:none"></span>
+      </div>
+    </aside>
+
+    <!-- Output pane -->
+    <main class="output-pane">
+
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" id="tab-output" onclick="switchTab('output')">
+          <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Live Output
+        </button>
+        <button class="tab-btn" id="tab-changes" onclick="switchTab('changes')">
+          <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          Changes
+          <span class="tab-badge" id="changes-badge"></span>
+        </button>
+        <div class="tab-actions">
+          <button class="vscode-btn" id="vscode-btn" onclick="openInVSCode()">
+            <svg viewBox="0 0 24 24"><path d="M17.5 3.5L9 12l-4-3.5L3 10l6 5.5 9-9.5z"/><path d="M3 14l2 2 4-4"/><rect x="2" y="2" width="20" height="20" rx="3"/></svg>
+            Open in VS Code
+          </button>
+          <button class="copy-btn" id="copy-btn" onclick="copyResult()">Copy result</button>
+        </div>
+      </div>
+
+      <!-- Output tab panel -->
+      <div class="tab-panel active" id="panel-output">
+        <div class="log-wrap" id="log-wrap">
+          <div class="log-empty" id="log-empty">
+            <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            <p>Output will appear here once you generate code.</p>
+          </div>
+          <div id="log"></div>
+        </div>
+      </div>
+
+      <!-- Changes tab panel -->
+      <div class="tab-panel" id="panel-changes">
+        <div class="changes-layout">
+
+          <!-- Left: file tree -->
+          <nav class="changes-tree" id="changes-tree">
+            <div class="changes-tree-empty" id="changes-tree-empty">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <p>File changes will appear here after generation.</p>
+            </div>
+          </nav>
+
+          <!-- Right: diff viewer -->
+          <div class="changes-viewer">
+            <div class="diff-legend" id="diff-legend" style="display:none">
+              <span class="diff-legend-item">
+                <span class="diff-legend-swatch" style="background:var(--diff-add-bg);border:1px solid var(--diff-add-gutter)"></span>
+                Added
+              </span>
+              <span class="diff-legend-item">
+                <span class="diff-legend-swatch" style="background:var(--diff-del-bg);border:1px solid var(--diff-del-gutter)"></span>
+                Removed
+              </span>
+            </div>
+            <div class="diff-wrap" id="diff-wrap">
+              <div class="diff-empty" id="diff-empty">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <p>Select a file on the left to view its diff.</p>
+              </div>
+              <div id="diff-content"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
   </div>
 
   <script>
-    let eventSource = null;
-    let currentJobId = null;
-    let isUnloading = false;
+    /* ── state ── */
+    let eventSource   = null;
+    let currentJobId  = null;
+    let isUnloading   = false;
     let timerInterval = null;
-    let startTime = null;
+    let startTime     = null;
+    let resultText    = '';
+    let lastTokens    = null;
+    let diffFiles     = [];   // [{filename, adds, dels, lines}]
+    let activeFileIdx = -1;
+    let attachments   = [];   // [{id, name, kind, previewUrl?}]
 
+    /* ── file uploads ── */
+    async function handleFileSelect(input, kind) {
+      for (const file of Array.from(input.files)) {
+        const form = new FormData();
+        form.append('file', file);
+        try {
+          const res = await fetch('/upload', { method: 'POST', body: form });
+          if (!res.ok) { alert(`Upload failed: ${file.name}`); continue; }
+          const { id, name } = await res.json();
+          const previewUrl = kind === 'image' ? URL.createObjectURL(file) : null;
+          attachments.push({ id, name, kind, previewUrl });
+          renderAttachments();
+        } catch (e) {
+          alert(`Upload error: ${e.message}`);
+        }
+      }
+      input.value = '';  // allow re-selecting same file
+    }
+
+    async function removeAttachment(id) {
+      const idx = attachments.findIndex(a => a.id === id);
+      if (idx === -1) return;
+      const att = attachments[idx];
+      if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
+      attachments.splice(idx, 1);
+      renderAttachments();
+      await fetch(`/upload/${id}`, { method: 'DELETE' }).catch(() => {});
+    }
+
+    function renderAttachments() {
+      const list = document.getElementById('attachments-list');
+      list.innerHTML = '';
+      for (const att of attachments) {
+        const chip = document.createElement('div');
+        chip.className = 'attachment-chip';
+        const preview = att.kind === 'image'
+          ? `<img class="attachment-chip-thumb" src="${att.previewUrl}" alt="${escHtml(att.name)}" />`
+          : `<div class="attachment-chip-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>`;
+        chip.innerHTML = `
+          ${preview}
+          <span class="attachment-chip-name" title="${escHtml(att.name)}">${escHtml(att.name)}</span>
+          <button class="attachment-chip-remove" title="Remove" onclick="removeAttachment('${att.id}')">
+            <svg viewBox="0 0 14 14"><line x1="1" y1="1" x2="13" y2="13"/><line x1="13" y1="1" x2="1" y2="13"/></svg>
+          </button>`;
+        list.appendChild(chip);
+      }
+    }
+
+    /* ── tabs ── */
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      document.getElementById('panel-' + name).classList.add('active');
+
+      const vsBtn = document.getElementById('vscode-btn');
+      if (name === 'changes' && diffFiles.length > 0) {
+        vsBtn.classList.add('visible');
+      } else {
+        vsBtn.classList.remove('visible');
+      }
+    }
+
+    /* ── timer ── */
     function startTimer() {
       startTime = Date.now();
       const el = document.getElementById('timer');
       el.textContent = '0s';
       timerInterval = setInterval(() => {
         const secs = Math.floor((Date.now() - startTime) / 1000);
-        el.textContent = secs >= 60
-          ? `${Math.floor(secs / 60)}m ${secs % 60}s`
-          : `${secs}s`;
+        el.textContent = secs >= 60 ? `${Math.floor(secs/60)}m ${secs%60}s` : `${secs}s`;
       }, 1000);
     }
+    function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
 
-    function stopTimer() {
-      clearInterval(timerInterval);
-      timerInterval = null;
+    /* ── running / idle state ── */
+    function setRunning() {
+      const badge = document.getElementById('status-badge');
+      badge.classList.remove('done');
+      badge.classList.add('visible');
+      document.getElementById('status-label').textContent = '· running';
+      document.getElementById('status-tokens').style.display = 'none';
+      document.getElementById('run-btn').disabled = true;
+      document.getElementById('kill-btn').classList.add('visible');
+      document.getElementById('copy-btn').classList.remove('visible');
+      startTimer();
     }
 
     function setIdle() {
       stopTimer();
-      document.getElementById('status-dot').classList.remove('running');
       document.getElementById('run-btn').disabled = false;
       document.getElementById('kill-btn').classList.remove('visible');
       document.getElementById('kill-btn').disabled = false;
+
+      // Keep badge visible with final stats
+      const badge = document.getElementById('status-badge');
+      badge.classList.add('done');
+      document.getElementById('status-label').textContent = '· done';
+      if (lastTokens) {
+        const tokEl = document.getElementById('status-tokens');
+        tokEl.textContent = `· ${lastTokens.toLocaleString()} tokens`;
+        tokEl.style.display = 'inline';
+      }
+
       if (eventSource) { eventSource.close(); eventSource = null; }
       currentJobId = null;
     }
 
-    async function killJob() {
-      if (!currentJobId) return;
-      document.getElementById('kill-btn').disabled = true;
-      try {
-        await fetch(`/jobs/${currentJobId}`, { method: 'DELETE' });
-      } catch (_) {}
-    }
-
+    /* ── unload guard ── */
     window.addEventListener('beforeunload', (e) => {
       if (!currentJobId) return;
       isUnloading = true;
-      // Reset the flag after a short delay in case the user clicks "Stay"
       setTimeout(() => { isUnloading = false; }, 500);
-      e.preventDefault();
-      e.returnValue = '';  // triggers browser confirmation dialog
+      e.preventDefault(); e.returnValue = '';
     });
-
     window.addEventListener('pagehide', () => {
       if (!currentJobId) return;
-      // keepalive ensures the request completes even as the page unloads
       fetch(`/jobs/${currentJobId}`, { method: 'DELETE', keepalive: true }).catch(() => {});
     });
 
-    function appendLine(text, cls) {
+    /* ── log rendering ── */
+    const PREFIX = { session:'○', tool:'→', text:'◆', result:'✓', info:'i', error:'✕', done:'—' };
+
+    function appendLines(text, type) {
       const log = document.getElementById('log');
+      document.getElementById('log-empty').style.display = 'none';
       for (const part of text.split('\n')) {
-        const line = document.createElement('div');
-        line.className = cls;
-        line.textContent = part;
-        log.appendChild(line);
+        const row    = document.createElement('div');
+        row.className = `log-line line-${type}`;
+        const prefix = document.createElement('span');
+        prefix.className = 'log-prefix';
+        prefix.textContent = PREFIX[type] ?? '·';
+        const body   = document.createElement('span');
+        body.className = 'log-body';
+        body.textContent = part;
+        row.appendChild(prefix);
+        row.appendChild(body);
+        log.appendChild(row);
       }
-      log.scrollTop = log.scrollHeight;
+      const wrap = document.getElementById('log-wrap');
+      wrap.scrollTop = wrap.scrollHeight;
     }
 
+    function appendSeparator() {
+      const sep = document.createElement('div');
+      sep.className = 'result-sep';
+      document.getElementById('log').appendChild(sep);
+    }
+
+    /* ── open in VS Code ── */
+    async function openInVSCode() {
+      const repoPath = document.getElementById('repo-path').value.trim();
+      if (!repoPath) return;
+      try {
+        const res = await fetch('/open-vscode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo_path: repoPath }),
+        });
+        if (!res.ok) {
+          alert('Unable to open in VS Code. Check if VS Code is installed and CLI set up.');
+        }
+      } catch (e) {
+        alert('Unable to open in VS Code. Check if VS Code is installed and CLI set up.');
+      }
+    }
+
+    /* ── copy result ── */
+    function copyResult() {
+      if (!resultText) return;
+      navigator.clipboard.writeText(resultText).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy result'; }, 2000);
+      });
+    }
+
+    /* ── kill ── */
+    async function killJob() {
+      if (!currentJobId) return;
+      document.getElementById('kill-btn').disabled = true;
+      try { await fetch(`/jobs/${currentJobId}`, { method: 'DELETE' }); } catch (_) {}
+    }
+
+    /* ── diff: parse raw diff into file objects ── */
+    function parseDiff(rawDiff) {
+      const sections = rawDiff.split(/(?=^diff --git )/m).filter(Boolean);
+      return sections.map(section => {
+        const lines = section.split('\n');
+        const headerLine = lines[0] || '';
+        const fileMatch  = headerLine.match(/^diff --git a\/(.+) b\/(.+)$/);
+        const filename   = fileMatch ? fileMatch[2] : headerLine.replace('diff --git ', '');
+        let adds = 0, dels = 0;
+        for (const l of lines) {
+          if (l.startsWith('+') && !l.startsWith('+++')) adds++;
+          if (l.startsWith('-') && !l.startsWith('---')) dels++;
+        }
+        return { filename, adds, dels, lines };
+      });
+    }
+
+    /* ── diff: build the diff table for one file ── */
+    function buildDiffTable(lines) {
+      const table = document.createElement('table');
+      table.className = 'diff-table';
+      let oldLine = 0, newLine = 0, inHunk = false;
+      for (const line of lines) {
+        if (!inHunk && !line.startsWith('@@')) continue;
+        if (line.startsWith('@@')) {
+          inHunk = true;
+          const m = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+          if (m) { oldLine = parseInt(m[1], 10); newLine = parseInt(m[2], 10); }
+          table.appendChild(makeRow('hunk', '', '', line));
+          continue;
+        }
+        if (line.startsWith('+') && !line.startsWith('+++')) {
+          table.appendChild(makeRow('add', '', newLine, line.slice(1)));
+          newLine++;
+        } else if (line.startsWith('-') && !line.startsWith('---')) {
+          table.appendChild(makeRow('del', oldLine, '', line.slice(1)));
+          oldLine++;
+        } else if (!line.startsWith('\\') && !line.startsWith('---') && !line.startsWith('+++')) {
+          table.appendChild(makeRow('ctx', oldLine, newLine, line.slice(1)));
+          oldLine++; newLine++;
+        }
+      }
+      return table;
+    }
+
+    /* ── diff: show selected file in right panel ── */
+    function showFileDiff(idx) {
+      activeFileIdx = idx;
+
+      // Update tree selection
+      document.querySelectorAll('.tree-item').forEach((el, i) => {
+        el.classList.toggle('active', i === idx);
+      });
+
+      const container = document.getElementById('diff-content');
+      container.innerHTML = '';
+      document.getElementById('diff-empty').style.display = 'none';
+
+      const f = diffFiles[idx];
+      const fileDiv = document.createElement('div');
+      fileDiv.className = 'diff-file';
+
+      const fileHeader = document.createElement('div');
+      fileHeader.className = 'diff-file-header';
+      fileHeader.innerHTML = `
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="diff-filename">${escHtml(f.filename)}</span>
+        <div class="diff-stat">
+          ${f.adds ? `<span class="diff-stat-add">+${f.adds}</span>` : ''}
+          ${f.dels ? `<span class="diff-stat-del">−${f.dels}</span>` : ''}
+        </div>`;
+      fileDiv.appendChild(fileHeader);
+      fileDiv.appendChild(buildDiffTable(f.lines));
+      container.appendChild(fileDiv);
+    }
+
+    /* ── diff: render all files, build tree ── */
+    function renderDiff(rawDiff) {
+      diffFiles = parseDiff(rawDiff);
+      if (!diffFiles.length) return;
+
+      // Build file tree
+      const tree = document.getElementById('changes-tree');
+      tree.innerHTML = '';   // clear empty state
+
+      const header = document.createElement('div');
+      header.className = 'changes-tree-header';
+      header.textContent = `${diffFiles.length} file${diffFiles.length > 1 ? 's' : ''} changed`;
+      tree.appendChild(header);
+
+      diffFiles.forEach((f, idx) => {
+        const item = document.createElement('div');
+        item.className = 'tree-item';
+        item.title = f.filename;
+        item.onclick = () => showFileDiff(idx);
+
+        const icon = `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+        const statsHtml = [
+          f.adds ? `<span class="tree-stat-add">+${f.adds}</span>` : '',
+          f.dels ? `<span class="tree-stat-del">−${f.dels}</span>` : '',
+        ].join('');
+
+        // Show only the basename but keep full path in title
+        const basename = f.filename.split('/').pop();
+        item.innerHTML = `
+          ${icon}
+          <span class="tree-item-name" title="${escHtml(f.filename)}">${escHtml(basename)}</span>
+          <span class="tree-item-stats">${statsHtml}</span>`;
+        tree.appendChild(item);
+      });
+
+      // Show legend
+      document.getElementById('diff-legend').style.display = 'flex';
+
+      // Update badge
+      const badge = document.getElementById('changes-badge');
+      badge.textContent = `${diffFiles.length}`;
+      badge.classList.add('visible');
+
+      // Select first file and switch to changes tab
+      showFileDiff(0);
+      switchTab('changes');
+    }
+
+    function makeRow(type, oldN, newN, code) {
+      const tr = document.createElement('tr');
+      const rowClass = type === 'add' ? 'diff-row-add' : type === 'del' ? 'diff-row-del' : type === 'hunk' ? 'diff-row-hunk' : '';
+      if (rowClass) tr.className = rowClass;
+      const sign = type === 'add' ? '+' : type === 'del' ? '−' : type === 'hunk' ? '⋯' : ' ';
+      tr.innerHTML = `
+        <td class="diff-gutter">${oldN !== '' ? oldN : ''}</td>
+        <td class="diff-gutter">${newN !== '' ? newN : ''}</td>
+        <td class="diff-sign">${sign}</td>
+        <td class="diff-code">${escHtml(code)}</td>`;
+      return tr;
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    /* ── main ── */
     async function runGenerate() {
       const jiraKey  = document.getElementById('jira-key').value.trim();
       const repoPath = document.getElementById('repo-path').value.trim();
@@ -270,16 +787,27 @@
         return;
       }
 
-      // Reset UI
+      // Reset run state (attachments are intentionally preserved across runs)
       if (eventSource) { eventSource.close(); eventSource = null; }
-      currentJobId = null;
-      const log = document.getElementById('log');
-      log.innerHTML = '';
-      document.getElementById('output-section').classList.add('visible');
-      document.getElementById('status-dot').classList.add('running');
-      document.getElementById('run-btn').disabled = true;
-      document.getElementById('kill-btn').classList.add('visible');
-      startTimer();
+      currentJobId = null; resultText = ''; lastTokens = null;
+      diffFiles = []; activeFileIdx = -1;
+      document.getElementById('log').innerHTML = '';
+      document.getElementById('log-empty').style.display = '';
+      document.getElementById('diff-content').innerHTML = '';
+      document.getElementById('diff-empty').style.display = '';
+      document.getElementById('diff-legend').style.display = 'none';
+      document.getElementById('copy-btn').classList.remove('visible');
+      document.getElementById('vscode-btn').classList.remove('visible');
+      const badge = document.getElementById('changes-badge');
+      badge.classList.remove('visible'); badge.textContent = '';
+      // Reset tree to empty state
+      document.getElementById('changes-tree').innerHTML = `
+        <div class="changes-tree-empty" id="changes-tree-empty">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <p>File changes will appear here after generation.</p>
+        </div>`;
+      switchTab('output');
+      setRunning();
 
       // Start job
       let jobId;
@@ -287,39 +815,40 @@
         const res = await fetch('/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jira_key: jiraKey, repo_path: repoPath, context }),
+          body: JSON.stringify({ jira_key: jiraKey, repo_path: repoPath, context, attachment_ids: attachments.map(a => a.id) }),
         });
         if (!res.ok) throw new Error(await res.text());
         ({ job_id: jobId } = await res.json());
         currentJobId = jobId;
       } catch (err) {
-        appendLine(`Error starting job: ${err.message}`, 'line-error');
-        setIdle();
-        return;
+        appendLines(`Error starting job: ${err.message}`, 'error');
+        setIdle(); return;
       }
 
       // Stream events
       eventSource = new EventSource(`/stream/${jobId}`);
-
       eventSource.onmessage = (e) => {
         const event = JSON.parse(e.data);
         switch (event.type) {
-          case 'session': appendLine(`Session: ${event.text}`, 'line-session'); break;
-          case 'tool':    appendLine(`  > ${event.text}`, 'line-tool'); break;
-          case 'text':    appendLine(`Claude: ${event.text}`, 'line-text'); break;
-          case 'result':  appendLine(event.text, 'line-result'); break;
-          case 'info':    appendLine(event.text, 'line-info'); break;
-          case 'error':   appendLine(`Error: ${event.text}`, 'line-error'); break;
-          case 'done':
-            appendLine('Done.', 'line-done');
-            setIdle();
+          case 'session': appendLines(`Session: ${event.text}`, 'session'); break;
+          case 'tool':    appendLines(event.text, 'tool'); break;
+          case 'text':    appendLines(event.text, 'text'); break;
+          case 'result':
+            appendSeparator();
+            resultText = event.text;
+            if (event.tokens) lastTokens = event.tokens;
+            appendLines(event.text, 'result');
+            document.getElementById('copy-btn').classList.add('visible');
             break;
+          case 'diff':    renderDiff(event.text); break;
+          case 'info':    appendLines(event.text, 'info'); break;
+          case 'error':   appendLines(event.text, 'error'); break;
+          case 'done':    appendLines('Finished.', 'done'); setIdle(); break;
         }
       };
-
       eventSource.onerror = () => {
         if (isUnloading) return;
-        appendLine('Connection lost.', 'line-error');
+        appendLines('Connection lost.', 'error');
         setIdle();
       };
     }

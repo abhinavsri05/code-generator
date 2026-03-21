@@ -2,11 +2,13 @@
 
 import asyncio
 import json
+import os
+import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 
-import claude_agent_sdk
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -16,31 +18,91 @@ from .jira import extract_issue_key, post_comment
 
 app = FastAPI(title="Code Generator")
 
-_CLAUDE_BIN = Path(claude_agent_sdk.__file__).parent / "_bundled" / "claude"
-
 # In-memory job store: job_id -> (queue, task)
 _jobs: dict[str, tuple[asyncio.Queue, asyncio.Task]] = {}
+
+# In-memory upload store: file_id -> {name, kind, content|path}
+_uploads: dict[str, dict] = {}
 
 
 class GenerateRequest(BaseModel):
     jira_key: str
     repo_path: str
     context: str = ""
+    attachment_ids: list[str] = []
+
+
+async def _git_head_sha(repo_path: str) -> str | None:
+    """Return the current HEAD commit SHA, or None if not a git repo / no commits."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "rev-parse", "HEAD",
+            cwd=repo_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await proc.communicate()
+        if proc.returncode == 0:
+            return stdout.decode().strip()
+    except Exception:
+        pass
+    return None
+
+
+async def _git_diff(repo_path: str, base_sha: str | None) -> str:
+    """Return a unified diff covering everything that changed since base_sha.
+
+    Combines two passes:
+      1. git diff <base> HEAD  — committed changes (works even if working tree is clean)
+      2. git diff HEAD         — any uncommitted working-tree changes on top
+
+    If base_sha is None (empty / brand-new repo) the Git empty-tree object is used
+    as the base so all files in the first commit are shown.
+    """
+    # SHA of git's well-known empty tree — safe to diff against on any repo
+    EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+    base = base_sha or EMPTY_TREE
+    parts: list[str] = []
+
+    async def _run_diff(*args: str) -> str:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "git", "diff", *args,
+                cwd=repo_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            stdout, _ = await proc.communicate()
+            return stdout.decode() if proc.returncode == 0 else ""
+        except Exception:
+            return ""
+
+    # Committed changes since base
+    committed = await _run_diff(base, "HEAD")
+    if committed:
+        parts.append(committed)
+
+    # Uncommitted changes (modified/staged but not yet committed)
+    uncommitted = await _run_diff("HEAD")
+    if uncommitted:
+        parts.append(uncommitted)
+
+    return "".join(parts)
 
 
 async def _run_init(repo_path: str, queue: asyncio.Queue) -> None:
     """Run `claude /init` in repo_path to ensure CLAUDE.md exists."""
     await queue.put({"type": "info", "text": "Running claude /init…"})
     proc = await asyncio.create_subprocess_exec(
-        str(_CLAUDE_BIN),
+        "claude",
         "--print",
         "--dangerously-skip-permissions",
-        "/init",
         cwd=repo_path,
+        stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
-    stdout, _ = await proc.communicate()
+    stdout, _ = await proc.communicate(input=b"/init")
     if stdout:
         await queue.put({"type": "info", "text": stdout.decode().strip()})
 
@@ -51,11 +113,68 @@ async def index():
     return html_path.read_text()
 
 
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Accept a file upload. Images are saved to a temp path; text files are stored as strings."""
+    file_id = str(uuid.uuid4())
+    content = await file.read()
+    media_type = file.content_type or "application/octet-stream"
+
+    if media_type.startswith("image/"):
+        suffix = Path(file.filename or "upload").suffix or ".bin"
+        fd, tmp_path = tempfile.mkstemp(suffix=suffix, prefix="codegen_img_")
+        os.close(fd)
+        with open(tmp_path, "wb") as f:
+            f.write(content)
+        _uploads[file_id] = {
+            "name": file.filename,
+            "kind": "image",
+            "path": tmp_path,
+        }
+    else:
+        _uploads[file_id] = {
+            "name": file.filename,
+            "kind": "text",
+            "content": content.decode("utf-8", errors="replace"),
+        }
+
+    return {"id": file_id, "name": file.filename, "kind": _uploads[file_id]["kind"]}
+
+
+@app.delete("/upload/{file_id}")
+async def delete_upload(file_id: str):
+    """Remove an uploaded file from the store (and disk if it was an image)."""
+    entry = _uploads.pop(file_id, None)
+    if entry and entry["kind"] == "image":
+        try:
+            os.unlink(entry["path"])
+        except OSError:
+            pass
+    return {"deleted": True}
+
+
 @app.post("/generate")
 async def generate(req: GenerateRequest):
+    if not Path(req.repo_path).is_dir():
+        raise HTTPException(status_code=400, detail=f"Repository path does not exist: {req.repo_path}")
+
+    # Build prompt, appending any uploaded attachments
     prompt = req.jira_key
     if req.context.strip():
-        prompt = f"{req.jira_key}\n\nAdditional context: {req.context.strip()}"
+        prompt += f"\n\nAdditional context: {req.context.strip()}"
+
+    for att_id in req.attachment_ids:
+        att = _uploads.get(att_id)
+        if not att:
+            continue
+        if att["kind"] == "text":
+            prompt += f"\n\n## Attached Document: {att['name']}\n{att['content']}"
+        elif att["kind"] == "image":
+            prompt += (
+                f"\n\n## Attached Wireframe/Image: {att['name']}\n"
+                f"The image is saved at: {att['path']}\n"
+                f"Use the Read tool to view this image for UI/design context."
+            )
 
     job_id = str(uuid.uuid4())
     queue: asyncio.Queue = asyncio.Queue()
@@ -64,8 +183,10 @@ async def generate(req: GenerateRequest):
         cfg = fresh_settings()
         result = ""
         cancelled = False
+        base_sha = None
         try:
             await _run_init(req.repo_path, queue)
+            base_sha = await _git_head_sha(req.repo_path)
             async for event in stream_events(prompt, cwd=req.repo_path, cfg=cfg):
                 await queue.put(event)
                 if event["type"] == "result":
@@ -76,19 +197,20 @@ async def generate(req: GenerateRequest):
         except Exception as exc:
             await queue.put({"type": "error", "text": str(exc)})
         finally:
-            # Post JIRA comment if credentials are configured (skip on cancellation)
-            if not cancelled and result and cfg.jira_url and cfg.jira_api_token:
-                issue_key = extract_issue_key(req.jira_key)
-                if issue_key:
-                    try:
-                        # Run in executor so the blocking urllib call never stalls the event loop
-                        loop = asyncio.get_running_loop()
-                        await loop.run_in_executor(None, post_comment, issue_key, result)
-                        await queue.put({"type": "info", "text": f"Comment posted to {issue_key}."})
-                    except Exception as exc:
-                        await queue.put({"type": "error", "text": f"Could not post JIRA comment: {exc}"})
+            if not cancelled:
+                diff = await _git_diff(req.repo_path, base_sha)
+                if diff:
+                    await queue.put({"type": "diff", "text": diff})
+                if result and cfg.jira_url and cfg.jira_api_token:
+                    issue_key = extract_issue_key(req.jira_key)
+                    if issue_key:
+                        try:
+                            loop = asyncio.get_running_loop()
+                            await loop.run_in_executor(None, post_comment, issue_key, result)
+                            await queue.put({"type": "info", "text": f"Comment posted to {issue_key}."})
+                        except Exception as exc:
+                            await queue.put({"type": "error", "text": f"Could not post JIRA comment: {exc}"})
             await queue.put({"type": "done"})
-            _jobs.pop(job_id, None)
 
     task = asyncio.create_task(_run())
     _jobs[job_id] = (queue, task)
@@ -103,13 +225,31 @@ async def stream(job_id: str):
     queue, _ = entry
 
     async def event_generator():
-        while True:
-            event = await queue.get()
-            yield f"data: {json.dumps(event)}\n\n"
-            if event["type"] == "done":
-                break
+        try:
+            while True:
+                event = await queue.get()
+                yield f"data: {json.dumps(event)}\n\n"
+                if event["type"] == "done":
+                    break
+        finally:
+            _jobs.pop(job_id, None)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+class OpenVSCodeRequest(BaseModel):
+    repo_path: str
+
+
+@app.post("/open-vscode")
+async def open_vscode(req: OpenVSCodeRequest):
+    if not Path(req.repo_path).is_dir():
+        raise HTTPException(status_code=400, detail=f"Path does not exist: {req.repo_path}")
+    try:
+        subprocess.Popen(["code", req.repo_path])
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="vscode_not_found")
+    return {"opened": True}
 
 
 @app.delete("/jobs/{job_id}")

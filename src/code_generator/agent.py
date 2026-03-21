@@ -1,44 +1,48 @@
-"""Claude agent with JIRA and Git MCP integration for code generation."""
+"""Claude agent via CLI with JIRA and Git MCP integration for code generation."""
 
 import anyio
+import asyncio
+import json
+import os
+import tempfile
 from collections.abc import AsyncIterator
-from claude_agent_sdk import (
-    query,
-    ClaudeAgentOptions,
-    ResultMessage,
-    SystemMessage,
-    AssistantMessage,
-    TextBlock,
-    ToolUseBlock,
-)
 
 from .config import Settings, settings
 
 
-def build_mcp_servers(cfg: Settings | None = None) -> dict:
-    """Build MCP server configurations for JIRA and Git."""
+def build_mcp_config(cfg: Settings | None = None, repo_path: str | None = None) -> dict:
+    """Build MCP server configuration dict for the claude CLI --mcp-config flag."""
     cfg = cfg or settings
     servers = {}
 
     # Git MCP server — reads local repo context (branches, commits, diffs)
+    git_repo = repo_path or cfg.git_repo_path
     servers["git"] = {
         "command": "uvx",
-        "args": ["mcp-server-git", "--repository", cfg.git_repo_path],
+        "args": ["mcp-server-git", "--repository", git_repo],
     }
 
-    # JIRA MCP server — reads tickets, acceptance criteria, and project context
+    # Atlassian MCP server — reads JIRA tickets and Confluence pages
     if cfg.jira_url and cfg.jira_api_token:
-        servers["jira"] = {
+        env: dict[str, str] = {
+            "JIRA_URL": cfg.jira_url,
+            "JIRA_USERNAME": cfg.jira_username,
+            "JIRA_API_TOKEN": cfg.jira_api_token,
+        }
+        conf_url = cfg.effective_confluence_url
+        if conf_url and cfg.effective_confluence_api_token:
+            env.update({
+                "CONFLUENCE_URL": conf_url,
+                "CONFLUENCE_USERNAME": cfg.effective_confluence_username,
+                "CONFLUENCE_API_TOKEN": cfg.effective_confluence_api_token,
+            })
+        servers["atlassian"] = {
             "command": "uvx",
             "args": ["mcp-atlassian"],
-            "env": {
-                "JIRA_URL": cfg.jira_url,
-                "JIRA_USERNAME": cfg.jira_username,
-                "JIRA_API_TOKEN": cfg.jira_api_token,
-            },
+            "env": env,
         }
 
-    return servers
+    return {"mcpServers": servers}
 
 
 SYSTEM_PROMPT = """You are an expert software engineer. Your job is to implement code
@@ -60,6 +64,9 @@ When given a JIRA ticket or task description:
 ## Test Results
 <paste the test output or "No tests found" if none exist>
 9. If git repo then create or work on a branch named feature/<ticket-key>_codegen (e.g. feature/PROJ-123_codegen) and commit all changes with the message "<ticket-key>: <ticket summary>". Do NOT push the branch."
+10. For each method, function, class or any other code you write, include a docstring that explains what it does, its inputs and outputs, and any important implementation details. Also include the source of the requirements - JIRA, additional context, Confluence, etc. This is critical for maintainability and readability of the code.
+11. Always write README.md. Include images/wireframes if relevant. The README should explain the purpose of the code, how to use it, and any other relevant details. This is important for anyone who will read or maintain the code in the future.
+12. Run /init at the start to ensure CLAUDE.md is present in the repo, which is required for the Git MCP to work properly. Run at the end as well to update CLAUDE.md with the new code changes and test results, which helps CLAUDE.md provide better context for future runs.
 """
 
 async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None) -> AsyncIterator[dict]:
@@ -72,35 +79,108 @@ async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None
       {"type": "result",  "text": "final result markdown"}
       {"type": "done"}
     """
-    mcp_servers = build_mcp_servers(cfg)
+    cfg = cfg or settings
+    mcp_config = build_mcp_config(cfg, repo_path=cwd)
 
-    options = ClaudeAgentOptions(
-        cwd=cwd,
-        mcp_servers=mcp_servers,
-        system_prompt=SYSTEM_PROMPT,
-        permission_mode="bypassPermissions",
-        max_turns=50,
-    )
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(mcp_config, f)
+        mcp_config_path = f.name
 
-    async for message in query(prompt=prompt, options=options):
-        if isinstance(message, SystemMessage) and message.subtype == "init":
-            session_id = message.data.get("session_id", "")
-            yield {"type": "session", "text": session_id}
+    try:
+        cmd = [
+            "claude",
+            "--print",
+            "--verbose",
+            "--dangerously-skip-permissions",
+            "--output-format", "stream-json",
+            "--max-turns", "50",
+            "--system-prompt", SYSTEM_PROMPT,
+            "--mcp-config", mcp_config_path,
+        ]
 
-        elif isinstance(message, AssistantMessage):
-            for block in message.content:
-                if isinstance(block, TextBlock) and block.text.strip():
-                    yield {"type": "text", "text": block.text.strip()}
-                elif isinstance(block, ToolUseBlock):
-                    input_summary = ", ".join(
-                        f"{k}={v!r}" for k, v in (block.input or {}).items()
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=cwd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        # Send prompt via stdin to avoid positional-arg / --mcp-config parsing conflicts
+        proc.stdin.write(prompt.encode())
+        await proc.stdin.drain()
+        proc.stdin.close()
+
+        # Drain stderr concurrently to avoid pipe-buffer deadlock
+        stderr_task = asyncio.create_task(proc.stderr.read())
+
+        # Read stdout in raw chunks to avoid the default 64 KB per-line limit
+        # (large MCP responses can exceed it, causing LimitOverrunError)
+        events_received = 0
+        leftover = b""
+        while True:
+            chunk = await proc.stdout.read(131072)  # 128 KB
+            if not chunk:
+                break
+            leftover += chunk
+            while b"\n" in leftover:
+                raw_line, leftover = leftover.split(b"\n", 1)
+                line = raw_line.decode(errors="replace").strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                events_received += 1
+                event_type = event.get("type")
+
+                if event_type == "system" and event.get("subtype") == "init":
+                    yield {"type": "session", "text": event.get("session_id", "")}
+
+                elif event_type == "assistant":
+                    for block in event.get("message", {}).get("content", []):
+                        if block.get("type") == "text" and block.get("text", "").strip():
+                            yield {"type": "text", "text": block["text"].strip()}
+                        elif block.get("type") == "tool_use":
+                            def _fmt(v: object) -> str:
+                                if isinstance(v, str):
+                                    if "\n" in v or len(v) > 80:
+                                        lines = v.count("\n") + 1
+                                        return f"<{lines} lines>"
+                                    return repr(v)
+                                return repr(v)
+                            input_summary = ", ".join(
+                                f"{k}={_fmt(v)}" for k, v in (block.get("input") or {}).items()
+                            )
+                            yield {"type": "tool", "text": f"{block['name']}({input_summary})"}
+
+                elif event_type == "result":
+                    usage = event.get("usage", {})
+                    total_tokens = (
+                        usage.get("input_tokens", 0)
+                        + usage.get("output_tokens", 0)
+                        + usage.get("cache_creation_input_tokens", 0)
+                        + usage.get("cache_read_input_tokens", 0)
                     )
-                    yield {"type": "tool", "text": f"{block.name}({input_summary})"}
+                    yield {
+                        "type": "result",
+                        "text": event.get("result", ""),
+                        "tokens": total_tokens or None,
+                        "cost_usd": event.get("cost_usd"),
+                    }
 
-        elif isinstance(message, ResultMessage):
-            yield {"type": "result", "text": message.result}
-
-    yield {"type": "done"}
+        await proc.wait()
+        stderr_text = (await stderr_task).decode().strip()
+        if stderr_text:
+            yield {"type": "error", "text": f"claude stderr (exit {proc.returncode}):\n{stderr_text}"}
+        elif proc.returncode != 0:
+            yield {"type": "error", "text": f"claude exited with code {proc.returncode} (no output)"}
+        elif events_received == 0:
+            yield {"type": "error", "text": "claude produced no output (exit 0) — check MCP config or prompt"}
+    finally:
+        os.unlink(mcp_config_path)
 
 
 async def generate_code(prompt: str, cwd: str = ".") -> str:
