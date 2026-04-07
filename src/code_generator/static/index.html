@@ -188,8 +188,29 @@
     .line-result  .log-prefix, .line-result  .log-body { color: var(--c-result); font-weight: 500; }
     .line-info    .log-prefix, .line-info    .log-body { color: var(--c-info); }
     .line-error   .log-prefix, .line-error   .log-body { color: var(--c-error); }
-    .line-done    .log-prefix, .line-done    .log-body { color: var(--c-done); font-style: italic; }
+    .line-done       .log-prefix, .line-done       .log-body { color: var(--c-done); font-style: italic; }
+    .line-attachment .log-prefix, .line-attachment .log-body { color: #6d28d9; font-weight: 600; }
     .result-sep { height: 1px; background: linear-gradient(to right, #a7f3d0, transparent); margin: 10px 0 6px; }
+    .attachment-sep { height: 1px; background: linear-gradient(to right, #ddd6fe, transparent); margin: 6px 0; }
+
+    .log-file-content {
+      font-family: "JetBrains Mono","Fira Code",ui-monospace,monospace; font-size: 0.75rem;
+      background: #f8fafc; border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px 12px; margin: 4px 0 10px 24px; white-space: pre-wrap; word-break: break-all;
+      color: #374151; line-height: 1.6; max-height: 240px; overflow-y: auto;
+    }
+    .log-file-img {
+      max-width: 320px; max-height: 220px; border-radius: 6px;
+      border: 1px solid var(--border); margin: 4px 0 10px 24px; display: block; object-fit: contain;
+    }
+
+    .line-jira .log-prefix, .line-jira .log-body { color: #0369a1; font-weight: 600; }
+    .log-jira-content {
+      font-family: "JetBrains Mono","Fira Code",ui-monospace,monospace; font-size: 0.75rem;
+      background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px;
+      padding: 10px 12px; margin: 4px 0 10px 24px; white-space: pre-wrap; word-break: break-all;
+      color: #0c4a6e; line-height: 1.6; max-height: 300px; overflow-y: auto;
+    }
 
     /* ── Changes tab: split layout ── */
     .changes-layout { flex: 1; display: flex; overflow: hidden; }
@@ -331,7 +352,7 @@
           <span style="font-weight:400;text-transform:none;font-size:0.75rem;color:#94a3b8">(optional)</span>
         </label>
         <!-- hidden inputs, triggered by buttons -->
-        <input id="file-doc"   type="file" accept=".md,.txt,.pdf,.csv,.json" multiple style="display:none" onchange="handleFileSelect(this,'text')" />
+        <input id="file-doc"   type="file" accept=".md,.txt" multiple style="display:none" onchange="handleFileSelect(this,'text')" />
         <input id="file-image" type="file" accept="image/*" multiple style="display:none" onchange="handleFileSelect(this,'image')" />
         <div style="display:flex;gap:6px">
           <button class="attach-btn" style="flex:1" onclick="document.getElementById('file-doc').click()">
@@ -452,6 +473,14 @@
     let attachments   = [];   // [{id, name, kind, previewUrl?}]
 
     /* ── file uploads ── */
+    function readFileAsText(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.readAsText(file);
+      });
+    }
+
     async function handleFileSelect(input, kind) {
       for (const file of Array.from(input.files)) {
         const form = new FormData();
@@ -461,7 +490,8 @@
           if (!res.ok) { alert(`Upload failed: ${file.name}`); continue; }
           const { id, name } = await res.json();
           const previewUrl = kind === 'image' ? URL.createObjectURL(file) : null;
-          attachments.push({ id, name, kind, previewUrl });
+          const content    = kind === 'text'  ? await readFileAsText(file) : null;
+          attachments.push({ id, name, kind, previewUrl, content });
           renderAttachments();
         } catch (e) {
           alert(`Upload error: ${e.message}`);
@@ -572,7 +602,7 @@
     });
 
     /* ── log rendering ── */
-    const PREFIX = { session:'○', tool:'→', text:'◆', result:'✓', info:'i', error:'✕', done:'—' };
+    const PREFIX = { session:'○', tool:'→', text:'◆', result:'✓', info:'i', error:'✕', done:'—', attachment:'▸', jira:'J' };
 
     function appendLines(text, type) {
       const log = document.getElementById('log');
@@ -598,6 +628,49 @@
       const sep = document.createElement('div');
       sep.className = 'result-sep';
       document.getElementById('log').appendChild(sep);
+    }
+
+    function appendJiraContent(toolName, text) {
+      const label = toolName.replace('jira_', '').replace(/_/g, ' ');
+      appendLines(`JIRA · ${label}`, 'jira');
+      const pre = document.createElement('pre');
+      pre.className = 'log-jira-content';
+      pre.textContent = text;
+      document.getElementById('log').appendChild(pre);
+      const wrap = document.getElementById('log-wrap');
+      wrap.scrollTop = wrap.scrollHeight;
+    }
+
+    /* ── show attachments in log ── */
+    function appendAttachmentsToLog() {
+      if (!attachments.length) return;
+      const log = document.getElementById('log');
+      document.getElementById('log-empty').style.display = 'none';
+
+      appendLines(`${attachments.length} attached file${attachments.length > 1 ? 's' : ''}:`, 'info');
+
+      for (const att of attachments) {
+        appendLines(att.name, 'attachment');
+        if (att.kind === 'image') {
+          const img = document.createElement('img');
+          img.src = att.previewUrl;
+          img.alt = att.name;
+          img.className = 'log-file-img';
+          log.appendChild(img);
+        } else if (att.content != null) {
+          const pre = document.createElement('pre');
+          pre.className = 'log-file-content';
+          pre.textContent = att.content;
+          log.appendChild(pre);
+        }
+      }
+
+      const sep = document.createElement('div');
+      sep.className = 'attachment-sep';
+      log.appendChild(sep);
+
+      const wrap = document.getElementById('log-wrap');
+      wrap.scrollTop = wrap.scrollHeight;
     }
 
     /* ── open in VS Code ── */
@@ -808,6 +881,7 @@
         </div>`;
       switchTab('output');
       setRunning();
+      appendAttachmentsToLog();
 
       // Start job
       let jobId;
@@ -840,6 +914,7 @@
             appendLines(event.text, 'result');
             document.getElementById('copy-btn').classList.add('visible');
             break;
+          case 'jira':    appendJiraContent(event.tool || 'jira', event.text); break;
           case 'diff':    renderDiff(event.text); break;
           case 'info':    appendLines(event.text, 'info'); break;
           case 'error':   appendLines(event.text, 'error'); break;

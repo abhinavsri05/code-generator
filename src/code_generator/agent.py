@@ -45,8 +45,12 @@ def build_mcp_config(cfg: Settings | None = None, repo_path: str | None = None) 
     return {"mcpServers": servers}
 
 
-SYSTEM_PROMPT = """You are an expert software engineer. Your job is to implement code
+def _build_system_prompt(jira_key: str = "") -> str:
+    ticket_ref = jira_key.strip() if jira_key.strip() else "<ticket-key>"
+    return f"""You are an expert software engineer. Your job is to implement code
 based on JIRA tickets and the existing Git repository context.
+
+The JIRA ticket for this task is: {ticket_ref}
 
 When given a JIRA ticket or task description:
 1. Use the JIRA MCP tools to read the ticket details, acceptance criteria, and any linked issues
@@ -63,13 +67,13 @@ When given a JIRA ticket or task description:
 
 ## Test Results
 <paste the test output or "No tests found" if none exist>
-9. If git repo then create or work on a branch named feature/<ticket-key>_codegen (e.g. feature/PROJ-123_codegen) and commit all changes with the message "<ticket-key>: <ticket summary>". Do NOT push the branch."
-10. For each method, function, class or any other code you write, include a docstring that explains what it does, its inputs and outputs, and any important implementation details. Also include the source of the requirements - JIRA, additional context, Confluence, etc. This is critical for maintainability and readability of the code.
+9. If git repo then create or work on a branch named feature/{ticket_ref}_codegen and commit all changes with the message "{ticket_ref}: <ticket summary>". Do NOT push the branch.
+10. For each method, function, class or any other code you write, include a docstring that explains what it does, its inputs and outputs, and any important implementation details. Always reference the exact JIRA ticket key {ticket_ref} (not any other placeholder) as the source of the requirements. This is critical for maintainability and readability of the code.
 11. Always write README.md. Include images/wireframes if relevant. The README should explain the purpose of the code, how to use it, and any other relevant details. This is important for anyone who will read or maintain the code in the future.
 12. Run /init at the start to ensure CLAUDE.md is present in the repo, which is required for the Git MCP to work properly. Run at the end as well to update CLAUDE.md with the new code changes and test results, which helps CLAUDE.md provide better context for future runs.
 """
 
-async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None) -> AsyncIterator[dict]:
+async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None, jira_key: str = "") -> AsyncIterator[dict]:
     """Async generator that yields agent events as dicts.
 
     Event shapes:
@@ -94,7 +98,7 @@ async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None
             "--dangerously-skip-permissions",
             "--output-format", "stream-json",
             "--max-turns", "50",
-            "--system-prompt", SYSTEM_PROMPT,
+            "--system-prompt", _build_system_prompt(jira_key),
             "--mcp-config", mcp_config_path,
         ]
 
@@ -118,6 +122,7 @@ async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None
         # (large MCP responses can exceed it, causing LimitOverrunError)
         events_received = 0
         leftover = b""
+        tool_call_map: dict[str, str] = {}  # tool_use_id -> tool_name
         while True:
             chunk = await proc.stdout.read(131072)  # 128 KB
             if not chunk:
@@ -144,6 +149,9 @@ async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None
                         if block.get("type") == "text" and block.get("text", "").strip():
                             yield {"type": "text", "text": block["text"].strip()}
                         elif block.get("type") == "tool_use":
+                            tool_id = block.get("id", "")
+                            tool_name = block.get("name", "")
+                            tool_call_map[tool_id] = tool_name
                             def _fmt(v: object) -> str:
                                 if isinstance(v, str):
                                     if "\n" in v or len(v) > 80:
@@ -154,7 +162,24 @@ async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None
                             input_summary = ", ".join(
                                 f"{k}={_fmt(v)}" for k, v in (block.get("input") or {}).items()
                             )
-                            yield {"type": "tool", "text": f"{block['name']}({input_summary})"}
+                            yield {"type": "tool", "text": f"{tool_name}({input_summary})"}
+
+                elif event_type == "user":
+                    for block in event.get("message", {}).get("content", []):
+                        if block.get("type") != "tool_result":
+                            continue
+                        tool_id = block.get("tool_use_id", "")
+                        tool_name = tool_call_map.get(tool_id, "")
+                        if not tool_name.startswith("jira_"):
+                            continue
+                        raw_content = block.get("content", "")
+                        if isinstance(raw_content, list):
+                            text_parts = [
+                                c.get("text", "") for c in raw_content if c.get("type") == "text"
+                            ]
+                            raw_content = "\n".join(text_parts)
+                        if raw_content:
+                            yield {"type": "jira", "text": raw_content, "tool": tool_name}
 
                 elif event_type == "result":
                     usage = event.get("usage", {})
@@ -185,8 +210,10 @@ async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None
 
 async def generate_code(prompt: str, cwd: str = ".") -> str:
     """Run the code-generation agent, print progress, and return the final result."""
+    from .jira import extract_issue_key
+    jira_key = extract_issue_key(prompt) or ""
     result = ""
-    async for event in stream_events(prompt, cwd):
+    async for event in stream_events(prompt, cwd, jira_key=jira_key):
         if event["type"] == "session":
             print(f"Session: {event['text']}\n")
         elif event["type"] == "text":

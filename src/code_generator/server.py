@@ -52,22 +52,21 @@ async def _git_head_sha(repo_path: str) -> str | None:
 async def _git_diff(repo_path: str, base_sha: str | None) -> str:
     """Return a unified diff covering everything that changed since base_sha.
 
-    Combines two passes:
-      1. git diff <base> HEAD  — committed changes (works even if working tree is clean)
-      2. git diff HEAD         — any uncommitted working-tree changes on top
+    Uses a single pass of `git diff <base>` (base commit vs current working tree)
+    so committed and uncommitted changes are shown in one coherent diff with no
+    duplicate file sections.  Untracked new files are appended separately.
 
     If base_sha is None (empty / brand-new repo) the Git empty-tree object is used
     as the base so all files in the first commit are shown.
     """
-    # SHA of git's well-known empty tree — safe to diff against on any repo
     EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
     base = base_sha or EMPTY_TREE
     parts: list[str] = []
 
-    async def _run_diff(*args: str) -> str:
+    async def _git(*args: str) -> str:
         try:
             proc = await asyncio.create_subprocess_exec(
-                "git", "diff", *args,
+                "git", *args,
                 cwd=repo_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
@@ -77,15 +76,22 @@ async def _git_diff(repo_path: str, base_sha: str | None) -> str:
         except Exception:
             return ""
 
-    # Committed changes since base
-    committed = await _run_diff(base, "HEAD")
-    if committed:
-        parts.append(committed)
+    # Single pass: base commit vs current working tree.
+    # Covers all tracked files — both committed and uncommitted changes —
+    # without duplication.
+    tracked = await _git("diff", base)
+    if tracked:
+        parts.append(tracked)
 
-    # Uncommitted changes (modified/staged but not yet committed)
-    uncommitted = await _run_diff("HEAD")
-    if uncommitted:
-        parts.append(uncommitted)
+    # Untracked new files (not yet staged) won't appear in `git diff`.
+    untracked_out = await _git("ls-files", "--others", "--exclude-standard")
+    for filepath in untracked_out.splitlines():
+        filepath = filepath.strip()
+        if not filepath:
+            continue
+        file_diff = await _git("diff", "--no-index", "/dev/null", filepath)
+        if file_diff:
+            parts.append(file_diff)
 
     return "".join(parts)
 
@@ -187,7 +193,7 @@ async def generate(req: GenerateRequest):
         try:
             await _run_init(req.repo_path, queue)
             base_sha = await _git_head_sha(req.repo_path)
-            async for event in stream_events(prompt, cwd=req.repo_path, cfg=cfg):
+            async for event in stream_events(prompt, cwd=req.repo_path, cfg=cfg, jira_key=req.jira_key):
                 await queue.put(event)
                 if event["type"] == "result":
                     result = event["text"]
