@@ -1,7 +1,7 @@
 [project]
-name = "code-generator"
+name = "aisdl"
 version = "0.1.0"
-description = "AI code generator using Claude with JIRA and Git MCP"
+description = "AI based Software Development Lifecycle (AISDL) — Claude-powered SDLC automation with JIRA and Git"
 authors = [
     {name = "Abhinav"}
 ]
@@ -19,15 +19,15 @@ dependencies = [
 
 
 [project.scripts]
-code-gen = "code_generator.cli:main"
-code-gen-ui = "code_generator.server:serve"
+aisdl = "code_generator.cli:main"
+aisdl-ui = "code_generator.server:serve"
 
 [tool.poetry]
 packages = [{include = "code_generator", from = "src"}]
 
 [tool.poetry.scripts]
-code-gen = "code_generator.cli:main"
-code-gen-ui = "code_generator.server:serve"
+aisdl = "code_generator.cli:main"
+aisdl-ui = "code_generator.server:serve"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

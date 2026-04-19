@@ -12,14 +12,14 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from .agent import stream_events
+from .agent import stream_events, stream_events_phased
 from .config import fresh_settings
 from .jira import extract_issue_key, post_comment
 
-app = FastAPI(title="Code Generator")
+app = FastAPI(title="AISDL — AI based Software Development Lifecycle")
 
-# In-memory job store: job_id -> (queue, task)
-_jobs: dict[str, tuple[asyncio.Queue, asyncio.Task]] = {}
+# In-memory job store: job_id -> (events_queue, task, feedback_queue)
+_jobs: dict[str, tuple[asyncio.Queue, asyncio.Task, asyncio.Queue]] = {}
 
 # In-memory upload store: file_id -> {name, kind, content|path}
 _uploads: dict[str, dict] = {}
@@ -30,6 +30,13 @@ class GenerateRequest(BaseModel):
     repo_path: str
     context: str = ""
     attachment_ids: list[str] = []
+    phased: bool = True
+
+
+class FeedbackRequest(BaseModel):
+    approved: bool = True
+    features: list[dict] = []
+    comment: str = ""
 
 
 async def _git_head_sha(repo_path: str) -> str | None:
@@ -184,6 +191,7 @@ async def generate(req: GenerateRequest):
 
     job_id = str(uuid.uuid4())
     queue: asyncio.Queue = asyncio.Queue()
+    feedback_queue: asyncio.Queue = asyncio.Queue()
 
     async def _run():
         cfg = fresh_settings()
@@ -193,7 +201,14 @@ async def generate(req: GenerateRequest):
         try:
             await _run_init(req.repo_path, queue)
             base_sha = await _git_head_sha(req.repo_path)
-            async for event in stream_events(prompt, cwd=req.repo_path, cfg=cfg, jira_key=req.jira_key):
+            if req.phased:
+                event_stream = stream_events_phased(
+                    prompt, cwd=req.repo_path, cfg=cfg,
+                    jira_key=req.jira_key, feedback_queue=feedback_queue,
+                )
+            else:
+                event_stream = stream_events(prompt, cwd=req.repo_path, cfg=cfg, jira_key=req.jira_key)
+            async for event in event_stream:
                 await queue.put(event)
                 if event["type"] == "result":
                     result = event["text"]
@@ -219,8 +234,18 @@ async def generate(req: GenerateRequest):
             await queue.put({"type": "done"})
 
     task = asyncio.create_task(_run())
-    _jobs[job_id] = (queue, task)
+    _jobs[job_id] = (queue, task, feedback_queue)
     return {"job_id": job_id}
+
+
+@app.post("/jobs/{job_id}/feedback")
+async def submit_feedback(job_id: str, body: FeedbackRequest):
+    entry = _jobs.get(job_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    _, _, feedback_queue = entry
+    await feedback_queue.put(body.model_dump())
+    return {"ok": True}
 
 
 @app.get("/stream/{job_id}")
@@ -228,7 +253,7 @@ async def stream(job_id: str):
     entry = _jobs.get(job_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    queue, _ = entry
+    queue, _, _ = entry
 
     async def event_generator():
         try:
@@ -263,7 +288,7 @@ async def cancel_job(job_id: str):
     entry = _jobs.get(job_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    _, task = entry
+    _, task, _ = entry
     task.cancel()
     return {"cancelled": True}
 

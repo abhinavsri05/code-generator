@@ -4,6 +4,7 @@ import anyio
 import asyncio
 import json
 import os
+import re
 import tempfile
 from collections.abc import AsyncIterator
 
@@ -73,7 +74,149 @@ When given a JIRA ticket or task description:
 12. Run /init at the start to ensure CLAUDE.md is present in the repo, which is required for the Git MCP to work properly. Run at the end as well to update CLAUDE.md with the new code changes and test results, which helps CLAUDE.md provide better context for future runs.
 """
 
-async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None, jira_key: str = "") -> AsyncIterator[dict]:
+_EXPLORE_SYSTEM_PROMPT = """\
+You are an expert software engineer. Your task is to deeply explore the context before any code is written.
+
+Steps:
+1. Use the JIRA MCP tools to read the ticket: summary, description, acceptance criteria, linked issues
+2. Use the Git MCP tools to understand the codebase:
+   - Current branch and recent commits
+   - File/directory structure of key source directories
+   - Existing code relevant to this ticket
+   - Tech stack, test framework, build system
+   - Coding conventions (naming, structure, docstrings)
+3. Identify ambiguities, risks, or missing information in the ticket
+
+Output a comprehensive exploration report with these sections:
+## Ticket Summary
+<exactly what needs to be built>
+
+## Codebase Overview
+<tech stack, key directories, relevant existing code>
+
+## Implementation Notes
+<patterns to follow, potential challenges, files likely to change>
+
+## Open Questions
+<anything unclear that the user should clarify before planning>
+"""
+
+_PLAN_SYSTEM_PROMPT_TEMPLATE = """\
+You are an expert software architect. Based on the exploration below, create a detailed implementation plan.
+
+## Exploration Context
+{exploration_context}
+
+Using this context, break the work into 2-6 logical features ordered by dependency.
+
+Output your plan as a JSON object inside a ```json code block:
+{{
+  "ticket_summary": "One-line summary of the ticket",
+  "features": [
+    {{
+      "id": "f1",
+      "name": "Short feature name",
+      "description": "What this feature implements",
+      "files_affected": ["src/path/to/file.py"],
+      "depends_on": [],
+      "acceptance_criteria": ["Criterion 1", "Criterion 2"]
+    }}
+  ]
+}}
+
+Rules:
+- Order features so dependencies come first; "depends_on" lists prerequisite feature ids
+- Each feature must be independently testable
+- If the ticket is small enough for one feature, output just one
+- After the JSON block, briefly explain the rationale
+"""
+
+_IMPLEMENT_SYSTEM_PROMPT_TEMPLATE = """\
+You are an expert software engineer implementing ONE specific feature of a JIRA ticket.
+
+The JIRA ticket: {jira_key}
+
+## Your feature to implement
+Name: {feature_name}
+Description: {feature_description}
+Expected files: {files_affected}
+Acceptance criteria:
+{acceptance_criteria}
+
+## All features in this ticket (implement ONLY yours)
+{all_features_summary}
+
+## Already-completed features
+{completed_summary}
+
+## Instructions
+1. Use JIRA MCP tools to read the full ticket if you need more context
+2. Use Git MCP tools to understand the codebase and what has already been committed
+3. Implement ONLY the feature described above
+4. Follow existing coding conventions
+5. Write and run tests for your implementation
+6. Keep .env and IDE files out of git (add to .gitignore if missing)
+7. Write all files with relative paths directly into the cwd — no wrapper directories
+8. Commit with message: "{jira_key}: Implement {feature_name}"
+9. Include docstrings referencing {jira_key}
+10. End your response with:
+
+## Summary
+<what was implemented>
+
+## Test Results
+<test output or "No tests found">
+"""
+
+_COMMIT_SYSTEM_PROMPT_TEMPLATE = """\
+You are an expert software engineer. All features have been implemented. Run tests, fix any failures, and finalize everything.
+
+JIRA ticket: {jira_key}
+
+## Features implemented
+{features_summary}
+
+## Instructions
+1. Use Git MCP tools to review all commits made for this ticket
+2. Run the FULL test suite — fix any failures before proceeding
+3. Update or create README.md to cover all changes
+4. Run /init to update CLAUDE.md
+5. Ensure all changes are committed
+6. End your response with:
+
+## Commit Summary
+<what was verified or fixed>
+
+## Final Test Results
+<full test output>
+"""
+
+
+def _extract_json_from_result(text: str) -> dict | None:
+    """Extract the first JSON object containing a 'features' key from agent output."""
+    for m in re.finditer(r'```(?:json)?\s*([\s\S]*?)\s*```', text):
+        try:
+            data = json.loads(m.group(1))
+            if isinstance(data, dict) and "features" in data:
+                return data
+        except json.JSONDecodeError:
+            continue
+    m = re.search(r'\{[\s\S]*?"features"\s*:\s*\[[\s\S]*?\][\s\S]*?\}', text)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+async def stream_events(
+    prompt: str,
+    cwd: str = ".",
+    cfg: Settings | None = None,
+    jira_key: str = "",
+    system_prompt_override: str | None = None,
+) -> AsyncIterator[dict]:
     """Async generator that yields agent events as dicts.
 
     Event shapes:
@@ -98,7 +241,7 @@ async def stream_events(prompt: str, cwd: str = ".", cfg: Settings | None = None
             "--dangerously-skip-permissions",
             "--output-format", "stream-json",
             "--max-turns", "50",
-            "--system-prompt", _build_system_prompt(jira_key),
+            "--system-prompt", system_prompt_override if system_prompt_override is not None else _build_system_prompt(jira_key),
             "--mcp-config", mcp_config_path,
         ]
 
@@ -228,3 +371,165 @@ async def generate_code(prompt: str, cwd: str = ".") -> str:
 def run(prompt: str, cwd: str = ".") -> str:
     """Synchronous entry point for code generation."""
     return anyio.run(generate_code, prompt, cwd)
+
+
+async def stream_events_phased(
+    prompt: str,
+    cwd: str,
+    cfg: Settings,
+    jira_key: str,
+    feedback_queue: asyncio.Queue,
+) -> AsyncIterator[dict]:
+    """Four-phase code generation with human-in-the-loop checkpoints.
+
+    Phases: Explore → [review] → Plan → [review] → Code (per feature) → [inter-feature review] → Commit.
+    feedback_queue receives dicts: {"approved": bool, "features": [...], "comment": "..."}.
+    """
+
+    async def _wait_feedback(timeout: float = 600.0) -> dict:
+        try:
+            return await asyncio.wait_for(feedback_queue.get(), timeout=timeout)
+        except asyncio.TimeoutError:
+            return {}
+
+    # ── Phase 1: Explore ──
+    yield {"type": "phase_start", "phase": "explore", "text": "Exploring codebase and ticket context…"}
+
+    explore_result = ""
+    async for event in stream_events(prompt, cwd=cwd, cfg=cfg, jira_key=jira_key,
+                                     system_prompt_override=_EXPLORE_SYSTEM_PROMPT):
+        yield event
+        if event["type"] == "result":
+            explore_result = event["text"]
+
+    yield {"type": "phase_complete", "phase": "explore", "summary": explore_result}
+
+    yield {
+        "type": "feedback_required",
+        "checkpoint": "explore",
+        "summary": explore_result,
+        "message": "Review the exploration findings. Add any context or corrections before planning begins.",
+    }
+    fb = await _wait_feedback()
+    if not fb:
+        yield {"type": "info", "text": "No feedback received — proceeding to planning."}
+    explore_extra = fb.get("comment", "")
+
+    # ── Phase 2: Plan ──
+    yield {"type": "phase_start", "phase": "plan", "text": "Creating implementation plan…"}
+
+    plan_prompt = f"Create an implementation plan for {jira_key or 'this task'} based on the exploration context."
+    if explore_extra:
+        plan_prompt += f"\n\nUser corrections/additions: {explore_extra}"
+
+    plan_system = _PLAN_SYSTEM_PROMPT_TEMPLATE.format(
+        exploration_context=explore_result or "(no exploration context)",
+    )
+
+    plan_result = ""
+    async for event in stream_events(plan_prompt, cwd=cwd, cfg=cfg, jira_key=jira_key,
+                                     system_prompt_override=plan_system):
+        yield event
+        if event["type"] == "result":
+            plan_result = event["text"]
+
+    decomposed = _extract_json_from_result(plan_result) if plan_result else None
+    features: list[dict] = decomposed.get("features", []) if decomposed else []
+
+    if not features:
+        yield {"type": "error", "text": "Could not parse feature plan — falling back to single-phase generation."}
+        async for event in stream_events(prompt, cwd=cwd, cfg=cfg, jira_key=jira_key):
+            yield event
+        return
+
+    yield {"type": "phase_complete", "phase": "plan", "features": features}
+
+    yield {
+        "type": "feedback_required",
+        "checkpoint": "plan",
+        "features": features,
+        "message": "Review the feature plan. Remove unwanted features or add guidance before coding begins.",
+    }
+    fb = await _wait_feedback()
+    if not fb:
+        yield {"type": "info", "text": "No feedback received — proceeding with original plan."}
+    if fb.get("features"):
+        features = fb["features"]
+    code_extra = fb.get("comment", "")
+
+    # ── Phase 3: Code (one subprocess per feature) ──
+    completed: list[dict] = []
+    for i, feature in enumerate(features):
+        yield {
+            "type": "phase_start", "phase": "implement",
+            "index": i, "total": len(features), "feature": feature,
+            "text": f"Coding feature {i + 1}/{len(features)}: {feature.get('name', '')}",
+        }
+
+        all_summary = "\n".join(
+            f"  [{f.get('id', 'f' + str(j + 1))}] {f.get('name', '')}: {f.get('description', '')}"
+            for j, f in enumerate(features)
+        )
+        done_summary = (
+            "\n".join(f"  [{f.get('id', '')}] {f.get('name', '')}: COMPLETE" for f in completed)
+            if completed else "  (none yet)"
+        )
+        criteria = "\n".join(f"  - {c}" for c in feature.get("acceptance_criteria", [])) or "  - See ticket"
+        files = ", ".join(feature.get("files_affected", [])) or "TBD"
+
+        impl_prompt = f"Implement the feature '{feature.get('name', '')}' for {jira_key or 'this task'}."
+        if code_extra:
+            impl_prompt += f"\n\nAdditional user guidance: {code_extra}"
+
+        impl_system = _IMPLEMENT_SYSTEM_PROMPT_TEMPLATE.format(
+            jira_key=jira_key or "<ticket>",
+            feature_name=feature.get("name", ""),
+            feature_description=feature.get("description", ""),
+            files_affected=files,
+            acceptance_criteria=criteria,
+            all_features_summary=all_summary,
+            completed_summary=done_summary,
+        )
+
+        async for event in stream_events(impl_prompt, cwd=cwd, cfg=cfg, jira_key=jira_key,
+                                         system_prompt_override=impl_system):
+            yield event
+
+        completed.append(feature)
+        yield {
+            "type": "phase_complete", "phase": "implement",
+            "index": i, "total": len(features), "feature": feature,
+        }
+
+        if i < len(features) - 1:
+            yield {
+                "type": "feedback_required",
+                "checkpoint": "feature_complete",
+                "feature": feature, "index": i,
+                "remaining_features": features[i + 1:],
+                "message": (
+                    f"'{feature.get('name', '')}' is complete. "
+                    f"Review before continuing to '{features[i + 1].get('name', '')}'."
+                ),
+            }
+            code_extra = ""
+            fb = await _wait_feedback()
+            code_extra = fb.get("comment", "")
+
+    # ── Phase 4: Commit ──
+    yield {"type": "phase_start", "phase": "commit", "text": "Running tests and finalizing commits…"}
+
+    features_summary = "\n".join(f"  - {f.get('name', '')}: {f.get('description', '')}" for f in features)
+    commit_system = _COMMIT_SYSTEM_PROMPT_TEMPLATE.format(
+        jira_key=jira_key or "<ticket>",
+        features_summary=features_summary,
+    )
+
+    async for event in stream_events(
+        f"Run tests and finalize all commits for {jira_key or 'this task'}.",
+        cwd=cwd, cfg=cfg, jira_key=jira_key,
+        system_prompt_override=commit_system,
+    ):
+        yield event
+
+    yield {"type": "phase_complete", "phase": "commit", "text": "All phases complete."}
