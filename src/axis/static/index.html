@@ -547,11 +547,17 @@ select.field-input {
 .sessions-detail-sep  { font-size: 11px; color: var(--text-3); }
 .sessions-detail-model{ font-size: 11px; font-family: var(--mono); color: var(--text-3); }
 .sessions-detail-refresh {
-  margin-left: auto; font-size: 11px; font-weight: 500; padding: 3px 8px;
+  font-size: 11px; font-weight: 500; padding: 3px 8px;
   border-radius: 5px; border: 1px solid var(--border); background: none;
   color: var(--text-3); cursor: pointer; transition: background 0.1s;
 }
 .sessions-detail-refresh:hover { background: var(--surface-2); }
+.sessions-detail-resume {
+  margin-left: auto; margin-right: 6px; font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 5px; border: 1px solid var(--accent); background: var(--accent-soft);
+  color: var(--accent-bright); cursor: pointer; transition: all 0.15s;
+}
+.sessions-detail-resume:hover { background: var(--accent); color: #fff; }
 .sessions-log-wrap { flex: 1; overflow-y: auto; padding: 6px 0; }
 
 /* ── Feedback bottom sheet ───────────────────────────────────── */
@@ -839,6 +845,7 @@ select.field-input {
                   <span class="sessions-detail-model" id="sessions-detail-model"></span>
                   <span class="sessions-detail-sep" id="sessions-detail-sep2">·</span>
                   <span id="sessions-detail-status-badge"></span>
+                  <button class="sessions-detail-resume" id="sessions-detail-resume" style="display:none" onclick="resumeSession()">↺ Resume</button>
                   <button class="sessions-detail-refresh" onclick="refreshSessionDetail()">Refresh</button>
                 </div>
                 <div class="sessions-log-wrap" id="sessions-log-wrap">
@@ -898,6 +905,7 @@ select.field-input {
     let pendingFeedbackEvent   = null;
     let activeSessionConflict  = null;
     let selectedSessionId      = null;
+    let selectedSession        = null;
     let sessionsRefreshTimer   = null;
     let totalFeatures          = 0;
     let currentMode            = 'phased';
@@ -1160,6 +1168,7 @@ select.field-input {
 
     async function openSessionDetail(s) {
       selectedSessionId = s.id;
+      selectedSession   = s;
       document.querySelectorAll('.session-item').forEach(el =>
         el.classList.toggle('selected', el.dataset.id === s.id));
 
@@ -1175,7 +1184,32 @@ select.field-input {
       statusBadge.className = `session-status-badge ${s.status}`;
       statusBadge.textContent = label;
 
+      const resumeBtn = document.getElementById('sessions-detail-resume');
+      resumeBtn.style.display = ['cancelled', 'interrupted', 'error'].includes(s.status) ? '' : 'none';
+
       await renderSessionEvents(s.id);
+    }
+
+    function resumeSession() {
+      if (!selectedSession) return;
+      const s = selectedSession;
+
+      // Pre-fill sidebar fields
+      document.getElementById('jira-key').value  = s.jira_key  || '';
+      document.getElementById('repo-path').value = s.repo_path || '';
+      const modelSel = document.getElementById('model-select');
+      if (s.model) {
+        const opt = Array.from(modelSel.options).find(o => o.value === s.model);
+        if (opt) { modelSel.value = s.model; updateModelPill(); }
+      }
+
+      // Add a resume note to context
+      const ctx = document.getElementById('context');
+      const note = `Resuming from ${SESSION_STATUS_LABELS[s.status] || s.status} session (${s.id.slice(0,8)}). Continue from where the previous run left off.`;
+      ctx.value = ctx.value.trim() ? ctx.value.trim() + '\n\n' + note : note;
+
+      // Switch to generate tab view
+      switchTab('log');
     }
 
     const LOG_TAG = {
