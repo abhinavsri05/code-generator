@@ -1,0 +1,1923 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AXIS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+/* ── Themes ─────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --bg:            oklch(0.13 0.016 262);
+  --surface:       oklch(0.17 0.016 265);
+  --surface-2:     oklch(0.20 0.015 265);
+  --surface-3:     oklch(0.23 0.015 265);
+  --border:        oklch(0.28 0.022 265);
+  --border-soft:   oklch(0.23 0.018 265);
+  --text:          oklch(0.91 0.010 265);
+  --text-2:        oklch(0.62 0.018 265);
+  --text-3:        oklch(0.42 0.016 265);
+  --accent:        oklch(0.58 0.220 264);
+  --accent-bright: oklch(0.72 0.190 264);
+  --accent-soft:   oklch(0.58 0.220 264 / 0.13);
+  --green:         oklch(0.72 0.175 142);
+  --green-soft:    oklch(0.72 0.175 142 / 0.12);
+  --amber:         oklch(0.80 0.160 72);
+  --amber-soft:    oklch(0.80 0.160 72  / 0.12);
+  --red:           oklch(0.63 0.200 22);
+  --red-soft:      oklch(0.63 0.200 22  / 0.12);
+  --shadow:        rgba(0,0,0,0.5);
+}
+[data-theme="light"] {
+  --bg:            oklch(0.97 0.004 265);
+  --surface:       oklch(1.00 0.000 265);
+  --surface-2:     oklch(0.95 0.006 265);
+  --surface-3:     oklch(0.92 0.008 265);
+  --border:        oklch(0.87 0.012 265);
+  --border-soft:   oklch(0.91 0.008 265);
+  --text:          oklch(0.20 0.020 265);
+  --text-2:        oklch(0.44 0.018 265);
+  --text-3:        oklch(0.62 0.014 265);
+  --accent:        oklch(0.50 0.220 264);
+  --accent-bright: oklch(0.44 0.220 264);
+  --accent-soft:   oklch(0.50 0.220 264 / 0.10);
+  --green:         oklch(0.52 0.175 142);
+  --green-soft:    oklch(0.52 0.175 142 / 0.10);
+  --amber:         oklch(0.55 0.160 72);
+  --amber-soft:    oklch(0.55 0.160 72  / 0.10);
+  --red:           oklch(0.50 0.200 22);
+  --red-soft:      oklch(0.50 0.200 22  / 0.10);
+  --shadow:        rgba(0,0,0,0.12);
+}
+:root { --mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace; --topbar-h: 48px; }
+
+/* ── Reset ───────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 13px; -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+input, textarea, select, button { font-family: inherit; }
+button { cursor: pointer; }
+
+/* ── Animations ──────────────────────────────────────────────── */
+@keyframes blink     { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes slideUp   { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+@keyframes fadeIn    { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.45;transform:scale(0.75)} }
+@keyframes spin      { to{transform:rotate(360deg)} }
+
+/* ── Topbar ──────────────────────────────────────────────────── */
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0; height: var(--topbar-h);
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 18px; gap: 12px; z-index: 20;
+}
+.topbar-logo { display: flex; align-items: baseline; gap: 8px; }
+.topbar-name { font-size: 14px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+.topbar-sub  { font-size: 11px; color: var(--text-3); letter-spacing: 0.01em; }
+.topbar-sep  { width: 1px; height: 18px; background: var(--border); flex-shrink: 0; }
+.topbar-status { display: flex; align-items: center; gap: 7px; }
+.topbar-status-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.topbar-status-dot.running  { background: var(--green);  animation: pulse-dot 1.4s ease-in-out infinite; }
+.topbar-status-dot.feedback { background: var(--amber);  animation: pulse-dot 1s ease-in-out infinite; }
+.topbar-status-dot.done     { background: var(--green); }
+.topbar-status-dot.error    { background: var(--red); }
+.topbar-status-label { font-size: 12px; font-family: var(--mono); color: var(--text-2); }
+.topbar-status-label.running  { color: var(--green); }
+.topbar-status-label.feedback { color: var(--amber); }
+.topbar-status-label.done     { color: var(--green); }
+.topbar-status-label.error    { color: var(--red); }
+.topbar-spacer { flex: 1; }
+/* Active session warning chip */
+.topbar-session-chip {
+  display: none; align-items: center; gap: 8px;
+  background: var(--amber-soft); border: 1px solid var(--amber);
+  border-radius: 6px; padding: 4px 12px; font-size: 12px; color: var(--amber);
+}
+.topbar-session-chip.visible { display: flex; }
+.topbar-session-chip-action {
+  background: none; border: none; color: var(--amber); font-size: 11px;
+  font-weight: 600; cursor: pointer; text-decoration: underline; padding: 0;
+}
+/* Model pill */
+.topbar-model-pill {
+  font-size: 11px; font-family: var(--mono); color: var(--text-3);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 9px; white-space: nowrap;
+}
+/* Theme toggle */
+.topbar-theme-btn {
+  width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-2); font-size: 14px;
+  display: flex; align-items: center; justify-content: center; transition: background 0.15s;
+  flex-shrink: 0;
+}
+.topbar-theme-btn:hover { background: var(--surface-3); }
+
+/* ── Layout ──────────────────────────────────────────────────── */
+.layout { display: flex; height: 100vh; padding-top: var(--topbar-h); }
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+.sidebar {
+  width: 288px; flex-shrink: 0; background: var(--surface);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  padding: 20px 16px; gap: 18px; overflow-y: auto;
+}
+.field-label {
+  display: block; font-size: 11px; font-weight: 600; color: var(--text-3);
+  letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 7px;
+}
+.field-label span { font-weight: 400; text-transform: none; font-size: 10px; }
+.field-input {
+  width: 100%; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 7px 10px; font-size: 12px; color: var(--text);
+  outline: none; transition: border-color 0.15s;
+}
+.field-input:focus { border-color: var(--accent); }
+.field-input::placeholder { color: var(--text-3); }
+.field-input.mono { font-family: var(--mono); font-size: 11px; }
+textarea.field-input { resize: vertical; line-height: 1.6; min-height: 66px; }
+select.field-input {
+  cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px;
+}
+
+/* Mode toggle */
+.mode-toggle {
+  display: flex; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px; gap: 3px;
+}
+.mode-opt {
+  flex: 1; padding: 5px 8px; border-radius: 4px; border: none;
+  font-size: 12px; font-weight: 500; transition: all 0.15s;
+  background: transparent; color: var(--text-3);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.mode-opt.active { background: var(--accent); color: #fff; }
+.mode-opt:not(.active):hover { color: var(--text-2); }
+
+/* Mode info */
+.mode-label-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.mode-info-btn {
+  width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-3); font-size: 10px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: all 0.15s; flex-shrink: 0; line-height: 1;
+}
+.mode-info-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.mode-popover {
+  position: fixed; z-index: 200;
+  background: var(--surface-3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px; width: 260px;
+  box-shadow: 0 8px 24px var(--shadow);
+  font-size: 12px; line-height: 1.55; color: var(--text-2);
+  animation: fadeIn 0.15s ease;
+  pointer-events: none;
+}
+.mode-popover strong { color: var(--text); display: block; margin-bottom: 4px; font-size: 12px; }
+.mode-popover ul { padding-left: 14px; margin: 6px 0 0; }
+.mode-popover ul li { margin-bottom: 3px; }
+
+/* Attachments */
+.attach-row { display: flex; gap: 8px; }
+.attach-btn {
+  flex: 1; padding: 6px 0; font-size: 11px; font-weight: 500; border-radius: 6px;
+  border: 1px dashed var(--border); background: transparent; color: var(--text-3);
+  transition: all 0.15s;
+}
+.attach-btn:hover { border-color: var(--accent); color: var(--accent-bright); }
+.attachments-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.attachment-chip {
+  display: flex; align-items: center; gap: 5px; font-size: 10px;
+  font-family: var(--mono); color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 7px;
+}
+.attachment-chip-thumb { width: 18px; height: 18px; border-radius: 2px; object-fit: cover; }
+.attachment-chip-remove {
+  background: none; border: none; color: var(--text-3); cursor: pointer;
+  font-size: 12px; line-height: 1; padding: 0; transition: color 0.1s;
+}
+.attachment-chip-remove:hover { color: var(--red); }
+
+/* Skills */
+.skills-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.skill-chip {
+  display: flex; align-items: center; gap: 6px; font-size: 11px;
+  font-family: var(--mono); color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px;
+}
+.skill-chip-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skill-chip-size { font-size: 10px; color: var(--text-3); flex-shrink: 0; }
+.skill-chip-remove {
+  background: none; border: none; color: var(--text-3); cursor: pointer;
+  font-size: 12px; line-height: 1; padding: 0; flex-shrink: 0; transition: color 0.1s;
+}
+.skill-chip-remove:hover { color: var(--red); }
+.skills-empty { font-size: 11px; color: var(--text-3); margin-top: 6px; }
+
+/* Sidebar spacer */
+.sidebar-spacer { flex: 1; }
+
+/* CTA buttons */
+.btn-generate {
+  width: 100%; padding: 10px 0; border-radius: 7px; border: none;
+  background: var(--accent); color: #fff; font-size: 13px; font-weight: 600;
+  box-shadow: 0 2px 12px var(--accent-soft); transition: opacity 0.15s, transform 0.1s;
+}
+.btn-generate:hover { opacity: 0.88; }
+.btn-generate:active { transform: scale(0.98); }
+.btn-generate:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.sidebar-running {
+  display: none; align-items: center; gap: 10px; padding: 6px 0;
+}
+.sidebar-running.visible { display: flex; }
+.sidebar-spinner {
+  width: 14px; height: 14px; border: 2px solid var(--accent-soft);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.8s linear infinite; flex-shrink: 0;
+}
+.sidebar-running-label { font-size: 12px; color: var(--text-2); font-family: var(--mono); }
+.btn-stop {
+  width: 100%; padding: 9px 0; border-radius: 7px;
+  border: 1px solid var(--red); background: var(--red-soft);
+  color: var(--red); font-size: 12px; font-weight: 600;
+  transition: background 0.15s; display: none;
+}
+.btn-stop.visible { display: block; }
+.btn-stop:hover { background: var(--red); color: #fff; }
+.btn-stop:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Active session warning (sidebar) */
+.active-session-warning {
+  display: none; background: var(--amber-soft); border: 1px solid var(--amber);
+  border-radius: 8px; padding: 12px 14px;
+}
+.active-session-warning.visible { display: block; }
+.active-session-warning-title { font-size: 12px; font-weight: 600; color: var(--amber); margin-bottom: 5px; }
+.active-session-warning-sub   { font-size: 11px; color: var(--text-2); margin-bottom: 10px; line-height: 1.5; }
+.active-session-warning-btns  { display: flex; gap: 6px; }
+.asw-view-btn {
+  flex: 1; font-size: 11px; font-weight: 600; padding: 6px 0; border-radius: 6px;
+  border: 1px solid var(--accent); background: var(--accent-soft);
+  color: var(--accent-bright); cursor: pointer; transition: background 0.12s;
+}
+.asw-view-btn:hover { background: var(--accent); color: #fff; }
+.asw-force-btn {
+  flex: 1; font-size: 11px; font-weight: 500; padding: 6px 0; border-radius: 6px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text-3); cursor: pointer; transition: all 0.12s;
+}
+.asw-force-btn:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+
+/* ── Tab bar ─────────────────────────────────────────────────── */
+.output-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.tab-bar {
+  display: flex; align-items: flex-end; gap: 0;
+  border-bottom: 1px solid var(--border); padding-left: 20px;
+  flex-shrink: 0; background: var(--surface);
+}
+.tab-btn {
+  padding: 10px 16px; border: none; background: transparent;
+  font-size: 12px; font-weight: 400; color: var(--text-3);
+  border-bottom: 2px solid transparent; display: flex; align-items: center;
+  gap: 7px; transition: color 0.15s; cursor: pointer; margin-bottom: -1px;
+}
+.tab-btn:hover { color: var(--text-2); }
+.tab-btn.active { font-weight: 600; color: var(--text); border-bottom-color: var(--accent); }
+.tab-badge {
+  font-size: 10px; background: var(--surface-3); color: var(--text-3);
+  border-radius: 10px; padding: 1px 6px; font-family: var(--mono);
+  display: none;
+}
+.tab-badge.visible { display: inline; }
+.tab-badge.feedback-badge { background: var(--amber-soft); color: var(--amber); animation: pulse-dot 1.4s ease-in-out infinite; }
+.tab-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; padding: 0 16px 0 8px; }
+.vscode-btn, .copy-btn {
+  font-size: 11px; font-weight: 500; padding: 5px 10px; border-radius: 5px;
+  border: 1px solid var(--border); background: transparent; color: var(--text-3);
+  cursor: pointer; transition: all 0.12s; display: none;
+}
+.vscode-btn:hover, .copy-btn:hover { background: var(--surface-2); color: var(--text-2); }
+.vscode-btn.visible, .copy-btn.visible { display: flex; align-items: center; gap: 5px; }
+
+/* ── Tab panels ─────────────────────────────────────────────── */
+.panels-container { flex: 1; overflow: hidden; position: relative; }
+.tab-panel { display: none; height: 100%; overflow: hidden; }
+.tab-panel.active { display: flex; flex-direction: column; }
+
+/* ── Live Output tab ─────────────────────────────────────────── */
+.log-wrap { flex: 1; overflow-y: auto; padding: 6px 0; }
+.log-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; gap: 10px; color: var(--text-3); font-size: 12px;
+  font-family: var(--mono); text-align: center;
+}
+.log-row {
+  display: flex; align-items: flex-start; padding: 1px 20px; min-height: 20px;
+}
+.log-row.row-err  { background: var(--red-soft); }
+.log-row.row-jira { background: var(--amber-soft); }
+.log-row.row-phase { background: var(--accent-soft); }
+.log-time {
+  width: 72px; flex-shrink: 0; font-size: 10px; font-family: var(--mono);
+  color: var(--text-3); line-height: 20px; user-select: none; padding-top: 1px;
+}
+.log-tag {
+  width: 40px; flex-shrink: 0; font-size: 10px; font-family: var(--mono);
+  font-weight: 700; line-height: 20px; user-select: none; padding-top: 1px;
+}
+.log-content {
+  flex: 1; font-family: var(--mono); font-size: 12px; line-height: 20px;
+  white-space: pre-wrap; word-break: break-all;
+}
+.log-sep { height: 1px; background: var(--border-soft); margin: 6px 20px; }
+.log-file-img { max-width: 200px; max-height: 120px; border-radius: 4px; margin: 4px 20px; display: block; }
+.log-file-content {
+  font-family: var(--mono); font-size: 11px; color: var(--text-3);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 8px 12px; margin: 4px 20px;
+  max-height: 120px; overflow-y: auto;
+}
+.log-cursor { color: var(--accent); font-family: var(--mono); font-size: 12px; animation: blink 1s step-end infinite; }
+.log-jira-content {
+  font-family: var(--mono); font-size: 11px; color: var(--text-3);
+  background: var(--surface-2); border-left: 2px solid var(--amber);
+  padding: 8px 12px; margin: 4px 20px; max-height: 120px; overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* ── Plan tab ────────────────────────────────────────────────── */
+.plan-wrap { flex: 1; overflow-y: auto; padding: 28px; }
+.plan-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; gap: 10px; color: var(--text-3); font-size: 12px; font-family: var(--mono); text-align: center;
+}
+
+/* Phase stepper */
+.phase-stepper {
+  display: flex; align-items: center; gap: 0; margin-bottom: 36px;
+  overflow-x: auto; padding-bottom: 4px;
+}
+.phase-step { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+.phase-step-circle {
+  width: 32px; height: 32px; border-radius: 50%; border: 2px solid;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; font-family: var(--mono);
+  transition: all 0.3s;
+}
+.phase-step.pending .phase-step-circle { border-color: var(--text-3); background: var(--surface-2); color: var(--text-3); }
+.phase-step.active  .phase-step-circle { border-color: var(--accent-bright); background: var(--accent-soft); color: var(--accent-bright); }
+.phase-step.done    .phase-step-circle { border-color: var(--green); background: var(--green-soft); color: var(--green); }
+.phase-step-label {
+  font-size: 11px; font-family: var(--mono); white-space: nowrap;
+  transition: color 0.3s;
+}
+.phase-step.pending .phase-step-label { color: var(--text-3); }
+.phase-step.active  .phase-step-label { color: var(--accent-bright); font-weight: 600; }
+.phase-step.done    .phase-step-label { color: var(--green); }
+.phase-connector {
+  flex: 1; height: 2px; min-width: 20px; max-width: 60px;
+  background: var(--border); margin: -14px 6px 14px; transition: background 0.3s;
+}
+.phase-connector.done { background: var(--green); }
+
+/* Feature cards */
+.features-section-title {
+  font-size: 11px; font-weight: 600; color: var(--text-3);
+  letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px;
+}
+.feature-cards {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;
+}
+.feature-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
+  animation: fadeIn 0.2s ease;
+}
+.feature-card-header { display: flex; align-items: flex-start; gap: 10px; }
+.feature-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.feature-card.pending .feature-dot { background: var(--text-3); }
+.feature-card.active  .feature-dot { background: var(--accent-bright); }
+.feature-card.done    .feature-dot { background: var(--green); }
+.feature-card-info { flex: 1; }
+.feature-card-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.feature-card-desc { font-size: 12px; color: var(--text-2); line-height: 1.6; }
+.feature-card-num  { font-size: 11px; color: var(--text-3); font-family: var(--mono); flex-shrink: 0; margin-top: 2px; }
+.feature-card-files { display: flex; flex-wrap: wrap; gap: 5px; padding-left: 16px; }
+.feature-file-chip {
+  font-size: 10px; font-family: var(--mono); color: var(--accent-bright);
+  background: var(--accent-soft); border-radius: 4px; padding: 2px 7px;
+}
+.feature-card-criteria { padding-left: 16px; }
+.feature-criteria-title { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 5px; }
+.feature-criteria-list { list-style: disc; padding-left: 14px; font-size: 11px; color: var(--text-2); line-height: 1.7; }
+
+/* ── Changes tab ─────────────────────────────────────────────── */
+.changes-layout { flex: 1; display: flex; overflow: hidden; }
+.changes-tree {
+  width: 220px; flex-shrink: 0; background: var(--surface);
+  border-right: 1px solid var(--border); overflow-y: auto; padding: 10px 0;
+  display: flex; flex-direction: column;
+}
+.changes-tree-header {
+  padding: 0 12px 8px; font-size: 10px; font-weight: 600;
+  color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; flex-shrink: 0;
+}
+.changes-tree-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px; padding: 24px;
+}
+.changes-tree-empty p { font-size: 11px; color: var(--text-3); text-align: center; }
+.tree-dir {
+  display: flex; align-items: center; gap: 6px; padding: 3px 8px;
+  cursor: pointer; user-select: none; font-size: 12px; font-family: var(--mono); color: var(--text-2);
+  transition: background 0.1s;
+}
+.tree-dir:hover { background: var(--surface-2); }
+.tree-dir-toggle { font-size: 10px; color: var(--text-3); width: 10px; flex-shrink: 0; }
+.tree-dir-name { flex: 1; }
+.tree-item {
+  display: flex; align-items: center; gap: 6px; padding: 3px 8px;
+  cursor: pointer; user-select: none; font-size: 12px; font-family: var(--mono);
+  color: var(--text-2); border-left: 2px solid transparent; transition: all 0.1s;
+  justify-content: space-between;
+}
+.tree-item:hover { background: var(--surface-2); }
+.tree-item.active { background: var(--accent-soft); color: var(--accent-bright); border-left-color: var(--accent); }
+.tree-item-left { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
+.tree-item-arrow { font-size: 10px; color: var(--text-3); flex-shrink: 0; }
+.tree-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-item-status { font-size: 10px; font-weight: 700; flex-shrink: 0; }
+.tree-item-status.modified { color: var(--amber); }
+.tree-item-status.added    { color: var(--green); }
+.tree-item-status.deleted  { color: var(--red); }
+.tree-stat-add { color: var(--green); font-size: 10px; font-family: var(--mono); }
+.tree-stat-del { color: var(--red);   font-size: 10px; font-family: var(--mono); }
+.tree-item-stats { display: flex; gap: 4px; flex-shrink: 0; }
+.changes-viewer { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.diff-header {
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0; background: var(--surface);
+}
+.diff-filename { font-family: var(--mono); font-size: 12px; color: var(--text); flex: 1; }
+.diff-stat-add { font-size: 11px; color: var(--green); font-family: var(--mono); }
+.diff-stat-del { font-size: 11px; color: var(--red);   font-family: var(--mono); }
+.diff-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px;
+}
+.diff-empty p { font-size: 11px; color: var(--text-3); }
+.diff-wrap { flex: 1; overflow: auto; }
+.diff-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+.diff-gutter { width: 36px; text-align: right; padding: 0 10px; font-size: 11px; color: var(--text-3); user-select: none; border-right: 1px solid var(--border); line-height: 20px; white-space: nowrap; }
+.diff-sign   { width: 14px; padding: 0 3px; text-align: center; line-height: 20px; font-weight: 600; }
+.diff-code   { padding: 0 16px; line-height: 20px; white-space: pre; overflow-x: visible; }
+.diff-row-add  { background: var(--green-soft); }
+.diff-row-add  .diff-sign, .diff-row-add  .diff-code { color: var(--green); }
+.diff-row-del  { background: var(--red-soft); }
+.diff-row-del  .diff-sign, .diff-row-del  .diff-code { color: var(--red); }
+.diff-row-hunk { background: var(--accent-soft); }
+.diff-row-hunk .diff-sign, .diff-row-hunk .diff-code { color: var(--text-3); font-style: italic; }
+.diff-row-ctx  .diff-code { color: var(--text-2); }
+
+/* ── Sessions tab ────────────────────────────────────────────── */
+.sessions-layout { flex: 1; display: flex; overflow: hidden; }
+.sessions-list-pane {
+  width: 280px; flex-shrink: 0; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; background: var(--surface);
+}
+.sessions-list-header {
+  padding: 12px 14px 8px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+}
+.sessions-list-title { font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+.sessions-clear-btn {
+  font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 5px;
+  border: 1px solid var(--border); background: none; color: var(--text-3);
+  cursor: pointer; transition: all 0.1s;
+}
+.sessions-clear-btn:hover { background: var(--red-soft); border-color: var(--red); color: var(--red); }
+.sessions-list-scroll { flex: 1; overflow-y: auto; }
+.sessions-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; gap: 8px; color: var(--text-3); font-size: 12px; text-align: center; padding: 24px;
+}
+.session-item {
+  padding: 12px 14px; cursor: pointer; border-left: 2px solid transparent;
+  transition: all 0.15s; border-bottom: 1px solid var(--border-soft);
+}
+.session-item:hover { background: var(--surface-2); }
+.session-item.selected { background: var(--accent-soft); border-left-color: var(--accent); }
+.session-item-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.session-item-key { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); }
+.session-item.selected .session-item-key { color: var(--accent-bright); }
+.session-status-badge { font-size: 10px; font-weight: 600; border-radius: 4px; padding: 2px 6px; }
+.session-status-badge.running     { color: var(--accent-bright); background: var(--accent-soft); }
+.session-status-badge.done        { color: var(--green); background: var(--green-soft); }
+.session-status-badge.cancelled   { color: var(--amber); background: var(--amber-soft); }
+.session-status-badge.error       { color: var(--red); background: var(--red-soft); }
+.session-status-badge.interrupted { color: var(--text-3); background: var(--surface-3); }
+.session-item-summary { font-size: 11px; color: var(--text-2); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-item-meta { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+.session-item-del {
+  background: none; border: none; cursor: pointer; padding: 2px 4px;
+  color: var(--text-3); border-radius: 4px; transition: color 0.1s; font-size: 12px;
+}
+.session-item-del:hover { color: var(--red); }
+.sessions-detail-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.sessions-detail-empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px; color: var(--text-3); font-size: 12px; text-align: center; padding: 24px;
+}
+.sessions-detail-header {
+  padding: 10px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0; background: var(--surface);
+}
+.sessions-detail-key  { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--text); }
+.sessions-detail-repo { font-size: 11px; color: var(--text-2); }
+.sessions-detail-sep  { font-size: 11px; color: var(--text-3); }
+.sessions-detail-model{ font-size: 11px; font-family: var(--mono); color: var(--text-3); }
+.sessions-detail-refresh {
+  margin-left: auto; font-size: 11px; font-weight: 500; padding: 3px 8px;
+  border-radius: 5px; border: 1px solid var(--border); background: none;
+  color: var(--text-3); cursor: pointer; transition: background 0.1s;
+}
+.sessions-detail-refresh:hover { background: var(--surface-2); }
+.sessions-log-wrap { flex: 1; overflow-y: auto; padding: 6px 0; }
+
+/* ── Feedback bottom sheet ───────────────────────────────────── */
+.feedback-sheet {
+  display: none; position: absolute; bottom: 0; left: 0; right: 0;
+  background: var(--surface); border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 32px var(--shadow);
+  flex-direction: column; animation: slideUp 0.25s ease; z-index: 10;
+}
+.feedback-sheet.visible { display: flex; }
+.feedback-sheet-header {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+}
+.feedback-sheet-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--amber);
+  box-shadow: 0 0 6px var(--amber); flex-shrink: 0;
+}
+.feedback-sheet-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.feedback-sheet-phase { margin-left: auto; font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+.feedback-sheet-collapse {
+  background: none; border: none; color: var(--text-3); cursor: pointer;
+  font-size: 14px; padding: 0 4px; line-height: 1;
+}
+.feedback-sheet-body { overflow-y: auto; max-height: 320px; }
+.feedback-sheet-section { padding: 14px 20px; border-bottom: 1px solid var(--border-soft); }
+.feedback-sheet-section-title {
+  font-size: 11px; font-weight: 600; color: var(--text-3);
+  letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 8px;
+}
+.feedback-summary-text {
+  font-size: 13px; color: var(--text-2); line-height: 1.7;
+  background: var(--surface-2); border-radius: 6px; padding: 12px 14px;
+  white-space: pre-wrap; max-height: 180px; overflow-y: auto;
+}
+/* Feature checkboxes in feedback */
+.feedback-features-list { display: flex; flex-direction: column; gap: 10px; }
+.feedback-feature-item { display: flex; align-items: flex-start; gap: 12px; }
+.feedback-feature-item input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; margin-top: 2px; flex-shrink: 0; }
+.feedback-feature-detail { flex: 1; }
+.feedback-feature-name { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 2px; }
+.feedback-feature-name.disabled { color: var(--text-3); }
+.feedback-feature-desc { font-size: 11px; color: var(--text-3); }
+.feedback-feature-files { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+/* Feature-complete checkpoint */
+.feedback-feature-complete {
+  background: var(--green-soft); border: 1px solid var(--green);
+  border-radius: 8px; padding: 16px; display: flex; gap: 12px; align-items: flex-start;
+}
+.feedback-feature-complete-icon { color: var(--green); font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.feedback-feature-complete-title { font-weight: 600; font-size: 13px; color: var(--green); margin-bottom: 2px; }
+.feedback-feature-complete-next  { font-size: 11px; color: var(--text-2); }
+/* Comment field in feedback */
+.feedback-comment-label { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; display: block; margin-bottom: 6px; }
+.feedback-comment-label span { font-weight: 400; text-transform: none; color: var(--text-3); }
+#feedback-comment {
+  width: 100%; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--text);
+  outline: none; resize: vertical; min-height: 72px; line-height: 1.6;
+  transition: border-color 0.15s; font-family: inherit;
+}
+#feedback-comment:focus { border-color: var(--accent); }
+#feedback-comment::placeholder { color: var(--text-3); }
+.feedback-sheet-footer {
+  padding: 12px 20px; display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+.feedback-vscode-btn {
+  font-size: 12px; color: var(--text-2); background: none;
+  border: 1px solid var(--border); border-radius: 6px; padding: 7px 14px;
+  cursor: pointer; transition: all 0.12s;
+}
+.feedback-vscode-btn:hover { background: var(--surface-2); }
+.feedback-approve-btn {
+  font-size: 13px; font-weight: 600; color: #fff; background: var(--accent);
+  border: none; border-radius: 6px; padding: 8px 20px; cursor: pointer;
+  transition: opacity 0.15s; display: flex; align-items: center; gap: 8px;
+}
+.feedback-approve-btn:hover { opacity: 0.88; }
+.feedback-skip-btn {
+  font-size: 12px; color: var(--text-2); background: none;
+  border: 1px solid var(--border); border-radius: 6px; padding: 7px 14px;
+  cursor: pointer; transition: background 0.12s;
+}
+.feedback-skip-btn:hover { background: var(--surface-2); }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-logo">
+      <span class="topbar-name">AXIS</span>
+      <span class="topbar-sub">AI-<b>eX</b>ecuted Implementation System</span>
+    </div>
+    <div class="topbar-sep"></div>
+    <div class="topbar-status" id="topbar-status" style="display:none">
+      <div class="topbar-status-dot" id="topbar-status-dot"></div>
+      <span class="topbar-status-label" id="topbar-status-label"></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <!-- Active session chip (409 warning) -->
+    <div class="topbar-session-chip" id="topbar-session-chip">
+      <span>⚠</span>
+      <span id="topbar-session-chip-text"></span>
+      <button class="topbar-session-chip-action" onclick="viewActiveSession()">View</button>
+      <button class="topbar-session-chip-action" onclick="forceGenerate()">Take over</button>
+    </div>
+    <div class="topbar-model-pill" id="topbar-model-pill">claude-sonnet-4-6</div>
+    <button class="topbar-theme-btn" onclick="toggleTheme()" title="Toggle theme">◐</button>
+  </header>
+
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+      <div>
+        <label class="field-label">JIRA Ticket</label>
+        <input id="jira-key" class="field-input" type="text" placeholder="PROJ-1234" autocomplete="off" />
+      </div>
+
+      <div>
+        <label class="field-label">Repository Path</label>
+        <input id="repo-path" class="field-input mono" type="text" placeholder="/workspace/my-app" />
+      </div>
+
+      <div>
+        <label class="field-label">Context <span>(optional)</span></label>
+        <textarea id="context" class="field-input" placeholder="Additional instructions or constraints…"></textarea>
+      </div>
+
+      <div>
+        <div class="mode-label-row">
+          <label class="field-label" style="margin-bottom:0">Mode</label>
+        </div>
+        <div class="mode-toggle">
+          <button class="mode-opt active" data-mode="phased" onclick="setMode('phased')">
+            Phased <span class="mode-info-btn" onclick="showModeInfo(event,'phased')">i</span>
+          </button>
+          <button class="mode-opt" data-mode="single" onclick="setMode('single')">
+            Single <span class="mode-info-btn" onclick="showModeInfo(event,'single')">i</span>
+          </button>
+        </div>
+      </div>
+      <div id="mode-popover" class="mode-popover" style="display:none"></div>
+
+      <div>
+        <label class="field-label">Model</label>
+        <select id="model-select" class="field-input" onchange="updateModelPill()">
+          <option value="claude-opus-4-7">Claude Opus 4.7</option>
+          <option value="claude-sonnet-4-6" selected>Claude Sonnet 4.6</option>
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="field-label">Attachments <span>(optional)</span></label>
+        <input id="file-doc"   type="file" accept=".md,.txt" multiple style="display:none" onchange="handleFileSelect(this,'text')" />
+        <input id="file-image" type="file" accept="image/*" multiple style="display:none" onchange="handleFileSelect(this,'image')" />
+        <div class="attach-row">
+          <button class="attach-btn" onclick="document.getElementById('file-doc').click()">+ Docs</button>
+          <button class="attach-btn" onclick="document.getElementById('file-image').click()">+ Images</button>
+        </div>
+        <div class="attachments-list" id="attachments-list"></div>
+      </div>
+
+      <div>
+        <label class="field-label">Skills <span>(optional)</span></label>
+        <input id="file-skill" type="file" accept=".md,.zip,.gz,.tgz,.tar.gz" style="display:none" onchange="handleSkillUpload(this)" />
+        <div class="attach-row">
+          <button class="attach-btn" onclick="document.getElementById('file-skill').click()">+ Upload Skill</button>
+        </div>
+        <div class="skills-list" id="skills-list"></div>
+      </div>
+
+      <div class="sidebar-spacer"></div>
+
+      <button id="run-btn" class="btn-generate" onclick="runGenerate()">Generate Code</button>
+
+      <div class="sidebar-running" id="sidebar-running">
+        <div class="sidebar-spinner"></div>
+        <span class="sidebar-running-label" id="sidebar-running-label">Running 00:00</span>
+      </div>
+
+      <button id="kill-btn" class="btn-stop" onclick="killJob()">Stop Execution</button>
+
+      <!-- Active session warning (sidebar) -->
+      <div class="active-session-warning" id="active-session-warning">
+        <div class="active-session-warning-title">⚠ Session already running</div>
+        <div class="active-session-warning-sub" id="asw-sub"></div>
+        <div class="active-session-warning-btns">
+          <button class="asw-view-btn" onclick="viewActiveSession()">View Session</button>
+          <button class="asw-force-btn" onclick="forceGenerate()">Force New</button>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Main content -->
+    <div class="output-pane">
+
+      <!-- Tab bar -->
+      <div class="tab-bar">
+        <button class="tab-btn active" id="tab-output" onclick="switchTab('output')">Live Output</button>
+        <button class="tab-btn" id="tab-plan" onclick="switchTab('plan')">
+          Plan
+          <span class="tab-badge" id="plan-badge"></span>
+        </button>
+        <button class="tab-btn" id="tab-changes" onclick="switchTab('changes')">
+          Changes
+          <span class="tab-badge" id="changes-badge"></span>
+        </button>
+        <button class="tab-btn" id="tab-sessions" onclick="switchTab('sessions')">
+          Sessions
+          <span class="tab-badge" id="sessions-badge"></span>
+        </button>
+        <div class="tab-actions">
+          <button class="vscode-btn" id="vscode-btn" onclick="openInVSCode()">Open in VS Code</button>
+          <button class="copy-btn" id="copy-btn" onclick="copyResult()">Copy result</button>
+        </div>
+      </div>
+
+      <!-- Panels -->
+      <div class="panels-container">
+
+        <!-- Live Output -->
+        <div class="tab-panel active" id="panel-output">
+          <div class="log-wrap" id="log-wrap">
+            <div class="log-empty" id="log-empty">No output yet — configure inputs and click Generate Code.</div>
+            <div id="log"></div>
+          </div>
+        </div>
+
+        <!-- Plan -->
+        <div class="tab-panel" id="panel-plan">
+          <div class="plan-wrap" id="plan-wrap">
+            <div class="plan-empty" id="plan-empty">Feature plan will appear after the exploration phase.</div>
+            <div id="plan-content" style="display:none">
+              <div class="phase-stepper" id="phase-stepper"></div>
+              <p class="features-section-title" id="features-title" style="display:none">Proposed Changes</p>
+              <div class="feature-cards" id="feature-cards"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Changes -->
+        <div class="tab-panel" id="panel-changes">
+          <div class="changes-layout">
+            <nav class="changes-tree" id="changes-tree">
+              <div class="changes-tree-empty" id="changes-tree-empty">
+                <p>File changes will appear here after generation.</p>
+              </div>
+            </nav>
+            <div class="changes-viewer">
+              <div class="diff-header" id="diff-header" style="display:none">
+                <span class="diff-filename" id="diff-filename"></span>
+                <span class="diff-stat-add" id="diff-stat-add"></span>
+                <span class="diff-stat-del" id="diff-stat-del"></span>
+              </div>
+              <div class="diff-empty" id="diff-empty"><p>Select a file on the left to view its diff.</p></div>
+              <div class="diff-wrap" id="diff-wrap" style="display:none"><div id="diff-content"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sessions -->
+        <div class="tab-panel" id="panel-sessions">
+          <div class="sessions-layout">
+            <div class="sessions-list-pane">
+              <div class="sessions-list-header">
+                <span class="sessions-list-title">History</span>
+                <button class="sessions-clear-btn" onclick="clearAllSessions()">Clear All</button>
+              </div>
+              <div class="sessions-list-scroll" id="sessions-list">
+                <div class="sessions-empty" id="sessions-list-empty">No sessions yet.</div>
+              </div>
+            </div>
+            <div class="sessions-detail-pane" id="sessions-detail-pane">
+              <div class="sessions-detail-empty" id="sessions-detail-empty">Select a session to view its logs.</div>
+              <div id="sessions-detail-content" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
+                <div class="sessions-detail-header">
+                  <span class="sessions-detail-key"   id="sessions-detail-key"></span>
+                  <span class="sessions-detail-sep">·</span>
+                  <span class="sessions-detail-repo"  id="sessions-detail-repo"></span>
+                  <span class="sessions-detail-sep">·</span>
+                  <span class="sessions-detail-model" id="sessions-detail-model"></span>
+                  <span class="sessions-detail-sep" id="sessions-detail-sep2">·</span>
+                  <span id="sessions-detail-status-badge"></span>
+                  <button class="sessions-detail-refresh" onclick="refreshSessionDetail()">Refresh</button>
+                </div>
+                <div class="sessions-log-wrap" id="sessions-log-wrap">
+                  <div class="log-wrap" style="padding:0"><div id="sessions-log"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feedback bottom sheet -->
+        <div class="feedback-sheet" id="feedback-sheet">
+          <div class="feedback-sheet-header">
+            <div class="feedback-sheet-dot"></div>
+            <span class="feedback-sheet-title" id="feedback-title">Review</span>
+            <span class="feedback-sheet-phase" id="feedback-phase"></span>
+            <button class="feedback-sheet-collapse" id="feedback-collapse-btn" onclick="toggleFeedbackCollapse()">▾</button>
+          </div>
+          <div class="feedback-sheet-body" id="feedback-sheet-body">
+            <div class="feedback-sheet-section" id="feedback-features-section">
+              <div class="feedback-sheet-section-title" id="feedback-section-title"></div>
+              <div id="feedback-features-container"></div>
+            </div>
+            <div class="feedback-sheet-section">
+              <label class="feedback-comment-label">Additional guidance <span>(optional)</span></label>
+              <textarea id="feedback-comment" placeholder="Any instructions for the next phase…"></textarea>
+            </div>
+          </div>
+          <div class="feedback-sheet-footer">
+            <button class="feedback-vscode-btn" onclick="openVSCodeFromFeedback()">Open in VS Code</button>
+            <div style="flex:1"></div>
+            <button class="feedback-skip-btn" onclick="submitFeedback(false)">Skip</button>
+            <button class="feedback-approve-btn" onclick="submitFeedback(true)">
+              Approve &amp; Continue  →
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /panels-container -->
+    </div><!-- /output-pane -->
+  </div><!-- /layout -->
+
+  <script>
+    /* ── state ── */
+    let eventSource    = null;
+    let currentJobId   = null;
+    let isUnloading    = false;
+    let timerInterval  = null;
+    let startTime      = null;
+    let resultText     = '';
+    let lastTokens     = null;
+    let diffFiles      = [];
+    let activeFileIdx  = -1;
+    let attachments    = [];
+    let planFeatures   = [];
+    let phaseState     = {};
+    let pendingFeedbackEvent   = null;
+    let activeSessionConflict  = null;
+    let selectedSessionId      = null;
+    let sessionsRefreshTimer   = null;
+    let totalFeatures          = 0;
+    let currentMode            = 'phased';
+    let feedbackCollapsed      = false;
+    let currentTheme           = 'light';
+
+    /* ── helpers ── */
+    function nowTime() {
+      const d = new Date();
+      return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`;
+    }
+    function fmt(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, '0');
+      const s = (sec % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    /* ── theme ── */
+    function toggleTheme() {
+      currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', currentTheme);
+    }
+
+    /* ── mode toggle ── */
+    function setMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.mode-opt').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === mode));
+    }
+
+    /* ── mode info popover ── */
+    const _modeInfo = {
+      phased: {
+        title: 'Phased mode',
+        body: 'Four sequential phases with human-in-the-loop checkpoints:',
+        items: [
+          '<b>Explore</b> — reads ticket &amp; codebase, summarises findings',
+          '<b>Plan</b> — breaks work into features; you can prune or redirect',
+          '<b>Code</b> — one agent run per feature; review between each',
+          '<b>Commit</b> — runs tests and finalises all commits',
+        ],
+      },
+      single: {
+        title: 'Single mode',
+        body: 'One agent run end-to-end — reads the ticket, plans, codes, and commits with no pauses. Faster, but no opportunity to course-correct mid-run.',
+        items: [],
+      },
+    };
+    let _popoverTimer = null;
+    function showModeInfo(e, mode) {
+      e.stopPropagation();
+      const pop = document.getElementById('mode-popover');
+      const info = _modeInfo[mode];
+      pop.innerHTML = `<strong>${info.title}</strong>${info.body}` +
+        (info.items.length ? `<ul>${info.items.map(i=>`<li>${i}</li>`).join('')}</ul>` : '');
+      const rect = e.target.getBoundingClientRect();
+      pop.style.display = 'block';
+      const pw = pop.offsetWidth;
+      let left = rect.left - pw + rect.width;
+      if (left < 8) left = 8;
+      pop.style.left = left + 'px';
+      pop.style.top  = (rect.bottom + 6) + 'px';
+      clearTimeout(_popoverTimer);
+      _popoverTimer = setTimeout(() => pop.style.display = 'none', 4000);
+    }
+    document.addEventListener('click', () => {
+      document.getElementById('mode-popover').style.display = 'none';
+    });
+
+    /* ── model pill ── */
+    function updateModelPill() {
+      const sel = document.getElementById('model-select');
+      const labels = {
+        'claude-opus-4-7':         'claude-opus-4.7',
+        'claude-sonnet-4-6':       'claude-sonnet-4.6',
+        'claude-haiku-4-5-20251001': 'claude-haiku-4.5',
+      };
+      document.getElementById('topbar-model-pill').textContent =
+        labels[sel.value] || sel.value;
+    }
+
+    /* init */
+    loadSkills();
+
+    /* ── file uploads ── */
+    function readFileAsText(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.readAsText(file);
+      });
+    }
+
+    async function handleFileSelect(input, kind) {
+      for (const file of Array.from(input.files)) {
+        const form = new FormData();
+        form.append('file', file);
+        try {
+          const res = await fetch('/upload', { method: 'POST', body: form });
+          if (!res.ok) { alert(`Upload failed: ${file.name}`); continue; }
+          const { id, name } = await res.json();
+          const previewUrl = kind === 'image' ? URL.createObjectURL(file) : null;
+          const content    = kind === 'text'  ? await readFileAsText(file) : null;
+          attachments.push({ id, name, kind, previewUrl, content });
+          renderAttachments();
+        } catch (e) { alert(`Upload error: ${e.message}`); }
+      }
+      input.value = '';
+    }
+
+    async function removeAttachment(id) {
+      const idx = attachments.findIndex(a => a.id === id);
+      if (idx === -1) return;
+      const att = attachments[idx];
+      if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
+      attachments.splice(idx, 1);
+      renderAttachments();
+      await fetch(`/upload/${id}`, { method: 'DELETE' }).catch(() => {});
+    }
+
+    function renderAttachments() {
+      const list = document.getElementById('attachments-list');
+      list.innerHTML = '';
+      for (const att of attachments) {
+        const chip = document.createElement('div');
+        chip.className = 'attachment-chip';
+        if (att.kind === 'image' && att.previewUrl) {
+          chip.innerHTML = `<img class="attachment-chip-thumb" src="${att.previewUrl}" alt="">`;
+        } else {
+          chip.innerHTML = `<span style="font-size:12px">📄</span>`;
+        }
+        chip.innerHTML += `
+          <span title="${escHtml(att.name)}">${escHtml(att.name.length > 14 ? att.name.slice(0,12)+'…' : att.name)}</span>
+          <button class="attachment-chip-remove" onclick="removeAttachment('${att.id}')">×</button>`;
+        list.appendChild(chip);
+      }
+    }
+
+    /* ── Skills ── */
+    async function loadSkills() {
+      try {
+        const res = await fetch('/skills');
+        const skills = await res.json();
+        renderSkills(skills);
+      } catch { /* silent */ }
+    }
+
+    function renderSkills(skills) {
+      const list = document.getElementById('skills-list');
+      list.innerHTML = '';
+      if (!skills.length) {
+        list.innerHTML = '<div class="skills-empty">No skills loaded</div>';
+        return;
+      }
+      for (const s of skills) {
+        const chip = document.createElement('div');
+        chip.className = 'skill-chip';
+        chip.innerHTML = `
+          <span class="skill-chip-name" title="${escHtml(s.name)}">${escHtml(s.name)}</span>
+          <span class="skill-chip-size">${(s.size/1024).toFixed(1)}kb</span>
+          <button class="skill-chip-remove" onclick="removeSkill('${escHtml(s.name)}')">×</button>`;
+        list.appendChild(chip);
+      }
+    }
+
+    async function handleSkillUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+      input.value = '';
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const res = await fetch('/skills', { method: 'POST', body: fd });
+        if (!res.ok) {
+          const err = await res.json();
+          alert('Skill upload failed: ' + (err.detail || res.statusText));
+          return;
+        }
+        await loadSkills();
+      } catch (e) { alert('Upload error: ' + e); }
+    }
+
+    async function removeSkill(name) {
+      await fetch('/skills/' + encodeURIComponent(name), { method: 'DELETE' });
+      await loadSkills();
+    }
+
+    /* ── tabs ── */
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      document.getElementById('panel-' + name).classList.add('active');
+      const vsBtn = document.getElementById('vscode-btn');
+      vsBtn.classList.toggle('visible', name === 'changes' && diffFiles.length > 0);
+      if (name === 'sessions') loadSessions();
+    }
+
+    /* ── Sessions tab ── */
+    function timeAgo(iso) {
+      if (!iso) return '';
+      const secs = Math.floor((Date.now() - new Date(iso)) / 1000);
+      if (secs < 60)    return `${secs}s ago`;
+      if (secs < 3600)  return `${Math.floor(secs/60)}m ago`;
+      if (secs < 86400) return `${Math.floor(secs/3600)}h ago`;
+      return `${Math.floor(secs/86400)}d ago`;
+    }
+
+    const SESSION_STATUS_LABELS = {
+      running:'Running', done:'Done', cancelled:'Cancelled',
+      error:'Error', interrupted:'Interrupted'
+    };
+
+    async function loadSessions() {
+      let list;
+      try { list = await fetch('/sessions').then(r => r.json()); }
+      catch { return; }
+
+      const container = document.getElementById('sessions-list');
+      const empty = document.getElementById('sessions-list-empty');
+      container.querySelectorAll('.session-item').forEach(el => el.remove());
+
+      if (!list.length) { empty.style.display = ''; return; }
+      empty.style.display = 'none';
+
+      for (const s of list) {
+        const item = document.createElement('div');
+        item.className = 'session-item' + (s.id === selectedSessionId ? ' selected' : '');
+        item.dataset.id = s.id;
+        item.onclick = () => openSessionDetail(s);
+        const label = SESSION_STATUS_LABELS[s.status] || s.status;
+        const repo  = s.repo_path ? s.repo_path.split(/[\\/]/).pop() : '—';
+        item.innerHTML = `
+          <div class="session-item-top">
+            <span class="session-item-key">${escHtml(s.jira_key || s.id)}</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="session-status-badge ${s.status}">${label}</span>
+              <button class="session-item-del" title="Delete" onclick="event.stopPropagation();deleteSession('${s.id}')">×</button>
+            </div>
+          </div>
+          <div class="session-item-summary" title="${escHtml(s.repo_path||'')}">${escHtml(repo)}</div>
+          <div class="session-item-meta">
+            <span>${timeAgo(s.started_at)}</span>
+            <span>${escHtml(s.model||'')}</span>
+          </div>`;
+        container.appendChild(item);
+      }
+
+      const running = list.filter(s => s.status === 'running').length;
+      const badge = document.getElementById('sessions-badge');
+      if (running > 0) { badge.textContent = running; badge.classList.add('visible'); }
+      else { badge.textContent = ''; badge.classList.remove('visible'); }
+
+      clearTimeout(sessionsRefreshTimer);
+      if (running > 0) sessionsRefreshTimer = setTimeout(loadSessions, 4000);
+    }
+
+    async function openSessionDetail(s) {
+      selectedSessionId = s.id;
+      document.querySelectorAll('.session-item').forEach(el =>
+        el.classList.toggle('selected', el.dataset.id === s.id));
+
+      document.getElementById('sessions-detail-empty').style.display = 'none';
+      const content = document.getElementById('sessions-detail-content');
+      content.style.display = 'flex';
+
+      document.getElementById('sessions-detail-key').textContent   = s.jira_key || s.id;
+      document.getElementById('sessions-detail-repo').textContent  = s.repo_path ? s.repo_path.split(/[\\/]/).pop() : '—';
+      document.getElementById('sessions-detail-model').textContent = s.model || '—';
+      const statusBadge = document.getElementById('sessions-detail-status-badge');
+      const label = SESSION_STATUS_LABELS[s.status] || s.status;
+      statusBadge.className = `session-status-badge ${s.status}`;
+      statusBadge.textContent = label;
+
+      await renderSessionEvents(s.id);
+    }
+
+    const LOG_TAG = {
+      session:    { tag: 'INFO',  tagClr: 'var(--text-3)',        lineClr: 'var(--text-3)',        rowCls: '' },
+      info:       { tag: 'INFO',  tagClr: 'var(--text-3)',        lineClr: 'var(--text-3)',        rowCls: '' },
+      text:       { tag: 'TEXT',  tagClr: 'var(--text-2)',        lineClr: 'var(--text)',          rowCls: '' },
+      tool:       { tag: 'TOOL',  tagClr: 'var(--accent-bright)', lineClr: 'var(--accent-bright)', rowCls: '' },
+      result:     { tag: ' OUT',  tagClr: 'var(--green)',         lineClr: 'var(--text-2)',        rowCls: '' },
+      error:      { tag: ' ERR',  tagClr: 'var(--red)',           lineClr: 'var(--red)',           rowCls: 'row-err' },
+      jira:       { tag: 'JIRA',  tagClr: 'var(--amber)',         lineClr: 'var(--amber)',         rowCls: 'row-jira' },
+      phase:      { tag: 'STEP',  tagClr: 'var(--accent-bright)', lineClr: 'var(--accent-bright)', rowCls: 'row-phase' },
+      attachment: { tag: 'FILE',  tagClr: 'var(--text-3)',        lineClr: 'var(--text-3)',        rowCls: '' },
+      done:       { tag: ' ---',  tagClr: 'var(--text-3)',        lineClr: 'var(--text-3)',        rowCls: '' },
+    };
+
+    async function renderSessionEvents(sessionId) {
+      let events;
+      try { events = await fetch(`/sessions/${sessionId}/events`).then(r => r.json()); }
+      catch { return; }
+      const log = document.getElementById('sessions-log');
+      log.innerHTML = '';
+      for (const ev of events) {
+        if (!ev.text || ev.type === 'diff') continue;
+        appendLogRow(log, ev.text, ev.type);
+      }
+      document.getElementById('sessions-log-wrap').scrollTop = 0;
+    }
+
+    async function refreshSessionDetail() {
+      if (!selectedSessionId) return;
+      await renderSessionEvents(selectedSessionId);
+      await loadSessions();
+    }
+
+    async function deleteSession(id) {
+      await fetch(`/sessions/${id}`, { method: 'DELETE' });
+      if (selectedSessionId === id) {
+        selectedSessionId = null;
+        document.getElementById('sessions-detail-empty').style.display = '';
+        document.getElementById('sessions-detail-content').style.display = 'none';
+      }
+      await loadSessions();
+    }
+
+    async function clearAllSessions() {
+      if (!confirm('Delete all session history?')) return;
+      await fetch('/sessions', { method: 'DELETE' });
+      selectedSessionId = null;
+      document.getElementById('sessions-detail-empty').style.display = '';
+      document.getElementById('sessions-detail-content').style.display = 'none';
+      await loadSessions();
+    }
+
+    /* ── Active session conflict ── */
+    function showActiveSessionWarning(session) {
+      activeSessionConflict = session;
+      const repo = session.repo_path ? session.repo_path.split(/[\\/]/).pop() : session.repo_path;
+      const sub = `"${session.jira_key || session.id}" is still running on ${repo}.`;
+      document.getElementById('asw-sub').textContent = sub;
+      document.getElementById('active-session-warning').classList.add('visible');
+
+      // Also show in topbar chip
+      document.getElementById('topbar-session-chip-text').textContent = sub;
+      document.getElementById('topbar-session-chip').classList.add('visible');
+    }
+
+    function hideActiveSessionWarning() {
+      activeSessionConflict = null;
+      document.getElementById('active-session-warning').classList.remove('visible');
+      document.getElementById('topbar-session-chip').classList.remove('visible');
+    }
+
+    function viewActiveSession() {
+      if (!activeSessionConflict) return;
+      switchTab('sessions');
+      openSessionDetail(activeSessionConflict);
+      hideActiveSessionWarning();
+    }
+
+    async function forceGenerate() {
+      hideActiveSessionWarning();
+      await runGenerate(true);
+    }
+
+    /* ── running / idle / feedback state ── */
+    function startTimer() {
+      startTime = Date.now();
+      timerInterval = setInterval(() => {
+        const secs = Math.floor((Date.now() - startTime) / 1000);
+        const label = secs >= 60 ? `${Math.floor(secs/60)}m ${secs%60}s` : `${secs}s`;
+        document.getElementById('sidebar-running-label').textContent = `Running  ${fmt(secs)}`;
+        // Update topbar
+        const tl = document.getElementById('topbar-status-label');
+        if (tl.classList.contains('running')) tl.textContent = `Running  ${fmt(secs)}`;
+      }, 1000);
+    }
+    function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
+
+    function setRunning() {
+      document.getElementById('run-btn').disabled = true;
+      document.getElementById('kill-btn').classList.add('visible');
+      document.getElementById('sidebar-running').classList.add('visible');
+      document.getElementById('sidebar-running-label').textContent = 'Running  00:00';
+      document.getElementById('copy-btn').classList.remove('visible');
+      // Topbar
+      const ts = document.getElementById('topbar-status');
+      ts.style.display = 'flex';
+      const dot = document.getElementById('topbar-status-dot');
+      dot.className = 'topbar-status-dot running';
+      const lbl = document.getElementById('topbar-status-label');
+      lbl.className = 'topbar-status-label running';
+      lbl.textContent = 'Running  00:00';
+      startTimer();
+    }
+
+    function setAwaitingFeedback() {
+      document.getElementById('sidebar-running-label').textContent = 'Paused at checkpoint';
+      const dot = document.getElementById('topbar-status-dot');
+      dot.className = 'topbar-status-dot feedback';
+      const lbl = document.getElementById('topbar-status-label');
+      lbl.className = 'topbar-status-label feedback';
+      lbl.textContent = 'Awaiting feedback';
+    }
+
+    function setIdle() {
+      stopTimer();
+      document.getElementById('run-btn').disabled = false;
+      document.getElementById('kill-btn').classList.remove('visible');
+      document.getElementById('kill-btn').disabled = false;
+      document.getElementById('sidebar-running').classList.remove('visible');
+      // Topbar
+      const dot = document.getElementById('topbar-status-dot');
+      dot.className = 'topbar-status-dot done';
+      const lbl = document.getElementById('topbar-status-label');
+      lbl.className = 'topbar-status-label done';
+      const secs = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+      lbl.textContent = `Done  ${fmt(secs)}`;
+      if (lastTokens) lbl.textContent += `  ·  ${lastTokens.toLocaleString()} tokens`;
+      if (eventSource) { eventSource.close(); eventSource = null; }
+      currentJobId = null;
+      // Refresh sessions badge
+      const sessTab = document.getElementById('panel-sessions');
+      if (sessTab && sessTab.classList.contains('active')) loadSessions();
+      else {
+        fetch('/sessions').then(r => r.json()).then(list => {
+          const running = list.filter(s => s.status === 'running').length;
+          const badge = document.getElementById('sessions-badge');
+          if (running > 0) { badge.textContent = running; badge.classList.add('visible'); }
+          else { badge.textContent = ''; badge.classList.remove('visible'); }
+        }).catch(() => {});
+      }
+    }
+
+    /* ── unload guard ── */
+    window.addEventListener('beforeunload', (e) => {
+      if (!currentJobId) return;
+      isUnloading = true;
+      setTimeout(() => { isUnloading = false; }, 500);
+      e.preventDefault(); e.returnValue = '';
+    });
+    window.addEventListener('pagehide', () => {
+      if (!currentJobId) return;
+      fetch(`/jobs/${currentJobId}`, { method: 'DELETE', keepalive: true }).catch(() => {});
+    });
+
+    /* ── log rendering ── */
+    function appendLogRow(container, text, type) {
+      const s = LOG_TAG[type] || LOG_TAG.info;
+      const time = nowTime();
+      for (const part of text.split('\n')) {
+        const row = document.createElement('div');
+        row.className = 'log-row' + (s.rowCls ? ' ' + s.rowCls : '');
+        const timeEl = document.createElement('span');
+        timeEl.className = 'log-time';
+        timeEl.textContent = time;
+        const tagEl = document.createElement('span');
+        tagEl.className = 'log-tag';
+        tagEl.style.color = s.tagClr;
+        tagEl.textContent = s.tag;
+        const contentEl = document.createElement('span');
+        contentEl.className = 'log-content';
+        contentEl.style.color = s.lineClr;
+        contentEl.textContent = part;
+        row.appendChild(timeEl);
+        row.appendChild(tagEl);
+        row.appendChild(contentEl);
+        container.appendChild(row);
+      }
+    }
+
+    function appendLines(text, type) {
+      const log = document.getElementById('log');
+      document.getElementById('log-empty').style.display = 'none';
+      appendLogRow(log, text, type);
+      document.getElementById('log-wrap').scrollTop = 99999;
+    }
+
+    function appendSeparator(cls = 'result-sep') {
+      const sep = document.createElement('div');
+      sep.className = 'log-sep';
+      document.getElementById('log').appendChild(sep);
+    }
+
+    function appendJiraContent(toolName, text) {
+      appendLines(`JIRA · ${toolName.replace('jira_', '').replace(/_/g, ' ')}`, 'jira');
+      const pre = document.createElement('pre');
+      pre.className = 'log-jira-content';
+      pre.textContent = text;
+      document.getElementById('log').appendChild(pre);
+      document.getElementById('log-wrap').scrollTop = 99999;
+    }
+
+    function appendAttachmentsToLog() {
+      if (!attachments.length) return;
+      appendLines(`${attachments.length} attached file${attachments.length > 1 ? 's' : ''}:`, 'info');
+      const log = document.getElementById('log');
+      document.getElementById('log-empty').style.display = 'none';
+      for (const att of attachments) {
+        appendLines(att.name, 'attachment');
+        if (att.kind === 'image' && att.previewUrl) {
+          const img = document.createElement('img');
+          img.src = att.previewUrl; img.alt = att.name; img.className = 'log-file-img';
+          log.appendChild(img);
+        } else if (att.content != null) {
+          const pre = document.createElement('pre');
+          pre.className = 'log-file-content'; pre.textContent = att.content;
+          log.appendChild(pre);
+        }
+      }
+      appendSeparator('attachment-sep');
+    }
+
+    /* ── Plan tab: phase stepper ── */
+    function buildPhaseStepper() {
+      const el = document.getElementById('phase-stepper');
+      el.innerHTML = '';
+      const phases = [
+        { key: 'explore', label: 'Explore', num: '1' },
+        { key: 'plan',    label: 'Plan',    num: '2' },
+        ...planFeatures.map((f, i) => ({ key: `impl_${i}`, label: f.name || `Code ${i+1}`, num: String(i + 3) })),
+        { key: 'commit',  label: 'Commit',  num: String(planFeatures.length + 3) },
+      ];
+      phases.forEach((p, idx) => {
+        const status = phaseState[p.key] || 'pending';
+        const step = document.createElement('div');
+        step.className = `phase-step ${status}`;
+        const circle = document.createElement('div');
+        circle.className = 'phase-step-circle';
+        circle.innerHTML = status === 'done'
+          ? '<svg viewBox="0 0 12 12" width="12" height="12"><polyline points="2 6 5 9 10 3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+          : p.num;
+        const label = document.createElement('span');
+        label.className = 'phase-step-label';
+        label.textContent = p.label.length > 16 ? p.label.slice(0,14) + '…' : p.label;
+        step.appendChild(circle);
+        step.appendChild(label);
+        el.appendChild(step);
+        if (idx < phases.length - 1) {
+          const conn = document.createElement('div');
+          conn.className = `phase-connector${status === 'done' ? ' done' : ''}`;
+          el.appendChild(conn);
+        }
+      });
+    }
+
+    function renderFeatureCards() {
+      const container = document.getElementById('feature-cards');
+      container.innerHTML = '';
+      const title = document.getElementById('features-title');
+      if (planFeatures.length > 0) {
+        title.style.display = '';
+        title.textContent = `Proposed Changes · ${planFeatures.length} item${planFeatures.length > 1 ? 's' : ''}`;
+      } else {
+        title.style.display = 'none';
+      }
+      planFeatures.forEach((f, idx) => {
+        const status = phaseState[`impl_${idx}`] || 'pending';
+        const card = document.createElement('div');
+        card.className = `feature-card ${status}`;
+        const files = (f.files_affected || [])
+          .map(fp => `<span class="feature-file-chip">${escHtml(fp)}</span>`).join('');
+        card.innerHTML = `
+          <div class="feature-card-header">
+            <span class="feature-dot"></span>
+            <div class="feature-card-info">
+              <div class="feature-card-name">${escHtml(f.name || '')}</div>
+              <div class="feature-card-desc">${escHtml(f.description || '')}</div>
+            </div>
+            <span class="feature-card-num">${idx + 1}/${planFeatures.length}</span>
+          </div>
+          ${files ? `<div class="feature-card-files">${files}</div>` : ''}`;
+        container.appendChild(card);
+      });
+    }
+
+    function refreshPlanTab() {
+      const content = document.getElementById('plan-content');
+      const empty   = document.getElementById('plan-empty');
+      if (!Object.keys(phaseState).length) {
+        content.style.display = 'none';
+        empty.style.display   = '';
+        return;
+      }
+      content.style.display = '';
+      empty.style.display   = 'none';
+      buildPhaseStepper();
+      renderFeatureCards();
+    }
+
+    /* ── Feedback bottom sheet ── */
+    function toggleFeedbackCollapse() {
+      feedbackCollapsed = !feedbackCollapsed;
+      document.getElementById('feedback-sheet-body').style.display = feedbackCollapsed ? 'none' : '';
+      document.getElementById('feedback-collapse-btn').textContent = feedbackCollapsed ? '▴' : '▾';
+    }
+
+    function showFeedbackOverlay(event) {
+      pendingFeedbackEvent = event;
+      feedbackCollapsed = false;
+      document.getElementById('feedback-sheet-body').style.display = '';
+      document.getElementById('feedback-collapse-btn').textContent = '▾';
+
+      const titles = {
+        explore:          'Exploration Complete — Review & Approve',
+        plan:             'Review Feature Plan',
+        feature_complete: 'Feature Complete — Continue?',
+      };
+      document.getElementById('feedback-title').textContent = titles[event.checkpoint] || 'Review';
+      document.getElementById('feedback-phase').textContent = event.message || '';
+      document.getElementById('feedback-comment').value = '';
+
+      const sectionTitle = document.getElementById('feedback-section-title');
+      const container = document.getElementById('feedback-features-container');
+      container.innerHTML = '';
+
+      if (event.checkpoint === 'explore') {
+        sectionTitle.textContent = 'Exploration Summary';
+        const box = document.createElement('div');
+        box.className = 'feedback-summary-text';
+        box.textContent = event.summary || '(no summary)';
+        container.appendChild(box);
+
+      } else if (event.checkpoint === 'plan') {
+        sectionTitle.textContent = `Proposed Changes · ${(event.features||[]).length} items`;
+        const list = document.createElement('div');
+        list.className = 'feedback-features-list';
+        list.id = 'fb-features-list';
+        (event.features || []).forEach((f, i) => {
+          const item = document.createElement('label');
+          item.className = 'feedback-feature-item';
+          item.dataset.idx = i;
+          const files = (f.files_affected || [])
+            .map(fp => `<span class="feature-file-chip">${escHtml(fp.split('/').pop())}</span>`).join('');
+          item.innerHTML = `
+            <input type="checkbox" checked data-idx="${i}" />
+            <div class="feedback-feature-detail">
+              <div class="feedback-feature-name">${escHtml(f.name || '')}</div>
+              <div class="feedback-feature-desc">${escHtml(f.description || '')}</div>
+              ${files ? `<div class="feedback-feature-files">${files}</div>` : ''}
+            </div>`;
+          list.appendChild(item);
+        });
+        container.appendChild(list);
+
+      } else {
+        sectionTitle.textContent = 'Status';
+        const next = (event.remaining_features || [])[0];
+        const div = document.createElement('div');
+        div.className = 'feedback-feature-complete';
+        div.innerHTML = `
+          <span class="feedback-feature-complete-icon">✓</span>
+          <div>
+            <div class="feedback-feature-complete-title">'${escHtml(event.feature?.name || '')}' is complete</div>
+            ${next ? `<div class="feedback-feature-complete-next">Next: ${escHtml(next.name)}</div>` : ''}
+          </div>`;
+        container.appendChild(div);
+      }
+
+      document.getElementById('feedback-sheet').classList.add('visible');
+      setAwaitingFeedback();
+
+      const badge = document.getElementById('plan-badge');
+      badge.textContent = '!';
+      badge.classList.add('visible', 'feedback-badge');
+    }
+
+    async function submitFeedback(approved) {
+      if (!currentJobId) return;
+
+      let features = [];
+      if (pendingFeedbackEvent?.checkpoint === 'plan') {
+        const original = pendingFeedbackEvent.features || [];
+        document.querySelectorAll('#fb-features-list input[type=checkbox]').forEach(cb => {
+          const idx = parseInt(cb.dataset.idx, 10);
+          if (cb.checked && !isNaN(idx) && original[idx]) features.push(original[idx]);
+        });
+      } else {
+        features = pendingFeedbackEvent?.features || [];
+      }
+
+      const comment = document.getElementById('feedback-comment').value.trim();
+      try {
+        await fetch(`/jobs/${currentJobId}/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ approved, features, comment }),
+        });
+      } catch (e) {
+        appendLines(`Failed to submit feedback: ${e.message}`, 'error');
+      }
+
+      document.getElementById('feedback-sheet').classList.remove('visible');
+      pendingFeedbackEvent = null;
+
+      const badge = document.getElementById('plan-badge');
+      badge.classList.remove('feedback-badge');
+      badge.textContent = planFeatures.length || '';
+      if (!planFeatures.length) badge.classList.remove('visible');
+
+      // Restore running status
+      const dot = document.getElementById('topbar-status-dot');
+      dot.className = 'topbar-status-dot running';
+      const lbl = document.getElementById('topbar-status-label');
+      lbl.className = 'topbar-status-label running';
+      lbl.textContent = `Running  ${fmt(startTime ? Math.floor((Date.now()-startTime)/1000) : 0)}`;
+      document.getElementById('sidebar-running-label').textContent = `Running  ${fmt(startTime ? Math.floor((Date.now()-startTime)/1000) : 0)}`;
+    }
+
+    /* ── VS Code / copy ── */
+    async function openVSCodeFromFeedback() {
+      const repoPath = document.getElementById('repo-path').value.trim();
+      if (!repoPath) { alert('No repository path set.'); return; }
+      try {
+        const res = await fetch('/open-vscode', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo_path: repoPath }),
+        });
+        if (!res.ok) alert('Unable to open VS Code.');
+      } catch (e) { alert('Unable to open VS Code.'); }
+    }
+
+    async function openInVSCode() {
+      const repoPath = document.getElementById('repo-path').value.trim();
+      if (!repoPath) return;
+      try {
+        const res = await fetch('/open-vscode', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repo_path: repoPath }),
+        });
+        if (!res.ok) alert('Unable to open in VS Code.');
+      } catch (e) { alert('Unable to open in VS Code.'); }
+    }
+
+    function copyResult() {
+      if (!resultText) return;
+      navigator.clipboard.writeText(resultText).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy result'; }, 2000);
+      });
+    }
+
+    async function killJob() {
+      if (!currentJobId) return;
+      document.getElementById('kill-btn').disabled = true;
+      try { await fetch(`/jobs/${currentJobId}`, { method: 'DELETE' }); } catch (_) {}
+    }
+
+    /* ── diff ── */
+    function parseDiff(rawDiff) {
+      const sections = rawDiff.split(/(?=^diff --git )/m).filter(Boolean);
+      return sections.map(section => {
+        const lines = section.split('\n');
+        const headerLine = lines[0] || '';
+        const fileMatch  = headerLine.match(/^diff --git a\/(.+) b\/(.+)$/);
+        const filename   = fileMatch ? fileMatch[2] : headerLine.replace('diff --git ', '');
+        let adds = 0, dels = 0;
+        for (const l of lines) {
+          if (l.startsWith('+') && !l.startsWith('+++')) adds++;
+          if (l.startsWith('-') && !l.startsWith('---')) dels++;
+        }
+        return { filename, adds, dels, lines };
+      });
+    }
+
+    function buildDiffTable(lines) {
+      const table = document.createElement('table');
+      table.className = 'diff-table';
+      let oldLine = 0, newLine = 0, inHunk = false;
+      for (const line of lines) {
+        if (!inHunk && !line.startsWith('@@')) continue;
+        if (line.startsWith('@@')) {
+          inHunk = true;
+          const m = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+          if (m) { oldLine = parseInt(m[1], 10); newLine = parseInt(m[2], 10); }
+          table.appendChild(makeRow('hunk', '', '', line));
+          continue;
+        }
+        if (line.startsWith('+') && !line.startsWith('+++')) {
+          table.appendChild(makeRow('add', '', newLine, line.slice(1))); newLine++;
+        } else if (line.startsWith('-') && !line.startsWith('---')) {
+          table.appendChild(makeRow('del', oldLine, '', line.slice(1))); oldLine++;
+        } else if (!line.startsWith('\\') && !line.startsWith('---') && !line.startsWith('+++')) {
+          table.appendChild(makeRow('ctx', oldLine, newLine, line.slice(1))); oldLine++; newLine++;
+        }
+      }
+      return table;
+    }
+
+    function makeRow(type, oldN, newN, code) {
+      const tr = document.createElement('tr');
+      const cls = type === 'add' ? 'diff-row-add' : type === 'del' ? 'diff-row-del' : type === 'hunk' ? 'diff-row-hunk' : 'diff-row-ctx';
+      tr.className = cls;
+      const sign = type === 'add' ? '+' : type === 'del' ? '−' : type === 'hunk' ? '⋯' : ' ';
+      tr.innerHTML = `
+        <td class="diff-gutter">${oldN !== '' ? oldN : ''}</td>
+        <td class="diff-gutter">${newN !== '' ? newN : ''}</td>
+        <td class="diff-sign">${sign}</td>
+        <td class="diff-code">${escHtml(code)}</td>`;
+      return tr;
+    }
+
+    function buildFileTree(files) {
+      const root = { dirs: {}, files: [] };
+      files.forEach((f, idx) => {
+        const parts = f.filename.split('/');
+        const basename = parts.pop();
+        let node = root;
+        for (const part of parts) {
+          if (!node.dirs[part]) node.dirs[part] = { dirs: {}, files: [] };
+          node = node.dirs[part];
+        }
+        node.files.push({ ...f, idx, basename });
+      });
+      return root;
+    }
+
+    function renderTreeNode(node, container, depth) {
+      const indent = 8 + depth * 14;
+      Object.keys(node.dirs).sort().forEach(dirName => {
+        const dirEl = document.createElement('div');
+        dirEl.className = 'tree-dir';
+        dirEl.style.paddingLeft = `${indent}px`;
+        let expanded = true;
+        const renderChildren = () => {
+          Array.from(dirEl.parentNode.children)
+            .filter(el => el.dataset.parentDir === dirName)
+            .forEach(el => { el.style.display = expanded ? '' : 'none'; });
+        };
+        dirEl.innerHTML = `<span class="tree-dir-toggle" id="tdir-${dirName}">▾</span><span class="tree-dir-name">${escHtml(dirName)}/</span>`;
+        dirEl.onclick = () => {
+          expanded = !expanded;
+          dirEl.querySelector('.tree-dir-toggle').textContent = expanded ? '▾' : '▸';
+          renderChildren();
+        };
+        container.appendChild(dirEl);
+        const childContainer = document.createDocumentFragment();
+        renderTreeNode(node.dirs[dirName], childContainer, depth + 1);
+        const wrapper = document.createElement('div');
+        wrapper.dataset.parentDir = dirName;
+        wrapper.appendChild(childContainer);
+        container.appendChild(wrapper);
+      });
+      node.files.sort((a, b) => a.basename.localeCompare(b.basename)).forEach(f => {
+        const item = document.createElement('div');
+        item.className = 'tree-item';
+        item.dataset.idx = f.idx;
+        item.style.paddingLeft = `${indent}px`;
+        item.onclick = () => showFileDiff(f.idx);
+        const statsHtml = [
+          f.adds ? `<span class="tree-stat-add">+${f.adds}</span>` : '',
+          f.dels ? `<span class="tree-stat-del">−${f.dels}</span>` : '',
+        ].join('');
+        item.innerHTML = `
+          <div class="tree-item-left">
+            <span class="tree-item-arrow">›</span>
+            <span class="tree-item-name" title="${escHtml(f.filename)}">${escHtml(f.basename)}</span>
+          </div>
+          <div class="tree-item-stats">${statsHtml}</div>`;
+        container.appendChild(item);
+      });
+    }
+
+    function showFileDiff(idx) {
+      activeFileIdx = idx;
+      document.querySelectorAll('.tree-item').forEach(el =>
+        el.classList.toggle('active', parseInt(el.dataset.idx) === idx));
+      const f = diffFiles[idx];
+      if (!f) return;
+      // Update diff header
+      document.getElementById('diff-header').style.display = 'flex';
+      document.getElementById('diff-filename').textContent = f.filename;
+      document.getElementById('diff-stat-add').textContent = f.adds ? `+${f.adds}` : '';
+      document.getElementById('diff-stat-del').textContent = f.dels ? `−${f.dels}` : '';
+      document.getElementById('diff-empty').style.display = 'none';
+      document.getElementById('diff-wrap').style.display = '';
+      const content = document.getElementById('diff-content');
+      content.innerHTML = '';
+      content.appendChild(buildDiffTable(f.lines));
+    }
+
+    function renderDiff(rawDiff) {
+      diffFiles = parseDiff(rawDiff);
+      if (!diffFiles.length) return;
+      const tree = document.getElementById('changes-tree');
+      tree.innerHTML = '';
+      const header = document.createElement('div');
+      header.className = 'changes-tree-header';
+      header.textContent = `${diffFiles.length} file${diffFiles.length > 1 ? 's' : ''} changed`;
+      tree.appendChild(header);
+      renderTreeNode(buildFileTree(diffFiles), tree, 0);
+      const badge = document.getElementById('changes-badge');
+      badge.textContent = `${diffFiles.length}`;
+      badge.classList.add('visible');
+      showFileDiff(0);
+      switchTab('changes');
+    }
+
+    /* ── main generate ── */
+    async function runGenerate(force = false) {
+      const jiraKey  = document.getElementById('jira-key').value.trim();
+      const repoPath = document.getElementById('repo-path').value.trim();
+      const context  = document.getElementById('context').value.trim();
+      const phased   = currentMode === 'phased';
+      const model    = document.getElementById('model-select').value;
+
+      if (!jiraKey || !repoPath) {
+        alert('JIRA Ticket and Repository Path are required.');
+        return;
+      }
+
+      hideActiveSessionWarning();
+
+      if (eventSource) { eventSource.close(); eventSource = null; }
+      currentJobId = null; resultText = ''; lastTokens = null;
+      diffFiles = []; activeFileIdx = -1;
+      planFeatures = []; phaseState = {}; totalFeatures = 0;
+
+      document.getElementById('log').innerHTML = '';
+      document.getElementById('log-empty').style.display = '';
+      document.getElementById('diff-content').innerHTML = '';
+      document.getElementById('diff-empty').style.display = '';
+      document.getElementById('diff-wrap').style.display = 'none';
+      document.getElementById('diff-header').style.display = 'none';
+      document.getElementById('copy-btn').classList.remove('visible');
+      document.getElementById('vscode-btn').classList.remove('visible');
+      ['changes-badge', 'plan-badge'].forEach(id => {
+        const b = document.getElementById(id);
+        b.classList.remove('visible', 'feedback-badge'); b.textContent = '';
+      });
+      document.getElementById('changes-tree').innerHTML =
+        '<div class="changes-tree-empty" id="changes-tree-empty"><p>File changes will appear here after generation.</p></div>';
+      document.getElementById('plan-content').style.display = 'none';
+      document.getElementById('plan-empty').style.display = '';
+
+      switchTab('output');
+      setRunning();
+      appendAttachmentsToLog();
+
+      let jobId;
+      try {
+        const res = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jira_key: jiraKey, repo_path: repoPath, context, attachment_ids: attachments.map(a => a.id), phased, model, force }),
+        });
+        if (res.status === 409) {
+          const data = await res.json();
+          setIdle();
+          showActiveSessionWarning(data.session);
+          return;
+        }
+        if (!res.ok) throw new Error(await res.text());
+        ({ job_id: jobId } = await res.json());
+        currentJobId = jobId;
+      } catch (err) {
+        appendLines(`Error starting job: ${err.message}`, 'error');
+        setIdle(); return;
+      }
+
+      eventSource = new EventSource(`/stream/${jobId}`);
+      eventSource.onmessage = (e) => {
+        const event = JSON.parse(e.data);
+        switch (event.type) {
+          case 'session': appendLines(`Session: ${event.text}`, 'session'); break;
+          case 'tool':    appendLines(event.text, 'tool'); break;
+          case 'text':    appendLines(event.text, 'text'); break;
+          case 'result':
+            appendSeparator('result-sep');
+            resultText = event.text;
+            if (event.tokens) lastTokens = event.tokens;
+            appendLines(event.text, 'result');
+            document.getElementById('copy-btn').classList.add('visible');
+            break;
+          case 'jira':    appendJiraContent(event.tool || 'jira', event.text); break;
+          case 'diff':    renderDiff(event.text); break;
+          case 'info':    appendLines(event.text, 'info'); break;
+          case 'error':   appendLines(event.text, 'error'); break;
+          case 'done':    appendLines('Session complete.', 'done'); setIdle(); break;
+
+          case 'phase_start':
+            appendSeparator('phase-sep');
+            appendLines(event.text || `Phase: ${event.phase}`, 'phase');
+            if      (event.phase === 'explore')   phaseState.explore = 'active';
+            else if (event.phase === 'plan')      phaseState.plan    = 'active';
+            else if (event.phase === 'commit')    phaseState.commit  = 'active';
+            else if (event.phase === 'implement') phaseState[`impl_${event.index}`] = 'active';
+            refreshPlanTab();
+            if (event.phase === 'explore') switchTab('plan');
+            break;
+
+          case 'phase_complete':
+            if (event.phase === 'explore') {
+              phaseState.explore = 'done';
+            } else if (event.phase === 'plan') {
+              phaseState.plan = 'done';
+              planFeatures = (event.features || []).map(f => ({ ...f }));
+              totalFeatures = planFeatures.length;
+              const pb = document.getElementById('plan-badge');
+              pb.textContent = String(planFeatures.length);
+              pb.classList.add('visible');
+            } else if (event.phase === 'commit') {
+              phaseState.commit = 'done';
+            } else if (event.phase === 'implement') {
+              phaseState[`impl_${event.index}`] = 'done';
+            }
+            refreshPlanTab();
+            break;
+
+          case 'feedback_required':
+            showFeedbackOverlay(event);
+            switchTab('plan');
+            refreshPlanTab();
+            break;
+        }
+      };
+      eventSource.onerror = () => {
+        if (isUnloading) return;
+        appendLines('Connection lost.', 'error');
+        setIdle();
+      };
+    }
+  </script>
+</body>
+</html>

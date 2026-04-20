@@ -4,7 +4,7 @@ import base64
 import urllib.request
 import json
 
-from code_generator.config import settings
+from axis.config import settings
 
 
 def fetch_jira_issue(issue_key: str) -> dict:

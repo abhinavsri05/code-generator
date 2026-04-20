@@ -9,6 +9,7 @@ import tempfile
 from collections.abc import AsyncIterator
 
 from .config import Settings, settings
+from .skills import load_all_skills
 
 
 def build_mcp_config(cfg: Settings | None = None, repo_path: str | None = None) -> dict:
@@ -192,6 +193,25 @@ JIRA ticket: {jira_key}
 """
 
 
+def _apply_skills(system_prompt: str) -> str:
+    """Append loaded skill instructions to a system prompt.
+
+    Skill instructions follow the application defaults. Where they conflict,
+    the skill content takes precedence — Claude reads later instructions as
+    overriding earlier ones.
+    """
+    skills = load_all_skills()
+    if not skills:
+        return system_prompt
+    return (
+        system_prompt.rstrip()
+        + "\n\n"
+        + "---\n"
+        + "## Project Skills (override application defaults where they conflict)\n\n"
+        + skills
+    )
+
+
 def _extract_json_from_result(text: str) -> dict | None:
     """Extract the first JSON object containing a 'features' key from agent output."""
     for m in re.finditer(r'```(?:json)?\s*([\s\S]*?)\s*```', text):
@@ -216,6 +236,7 @@ async def stream_events(
     cfg: Settings | None = None,
     jira_key: str = "",
     system_prompt_override: str | None = None,
+    model: str = "claude-sonnet-4-6",
 ) -> AsyncIterator[dict]:
     """Async generator that yields agent events as dicts.
 
@@ -240,8 +261,9 @@ async def stream_events(
             "--verbose",
             "--dangerously-skip-permissions",
             "--output-format", "stream-json",
+            "--model", model,
             "--max-turns", "50",
-            "--system-prompt", system_prompt_override if system_prompt_override is not None else _build_system_prompt(jira_key),
+            "--system-prompt", _apply_skills(system_prompt_override if system_prompt_override is not None else _build_system_prompt(jira_key)),
             "--mcp-config", mcp_config_path,
         ]
 
@@ -379,6 +401,7 @@ async def stream_events_phased(
     cfg: Settings,
     jira_key: str,
     feedback_queue: asyncio.Queue,
+    model: str = "claude-sonnet-4-6",
 ) -> AsyncIterator[dict]:
     """Four-phase code generation with human-in-the-loop checkpoints.
 
@@ -397,7 +420,7 @@ async def stream_events_phased(
 
     explore_result = ""
     async for event in stream_events(prompt, cwd=cwd, cfg=cfg, jira_key=jira_key,
-                                     system_prompt_override=_EXPLORE_SYSTEM_PROMPT):
+                                     system_prompt_override=_EXPLORE_SYSTEM_PROMPT, model=model):
         yield event
         if event["type"] == "result":
             explore_result = event["text"]
@@ -428,7 +451,7 @@ async def stream_events_phased(
 
     plan_result = ""
     async for event in stream_events(plan_prompt, cwd=cwd, cfg=cfg, jira_key=jira_key,
-                                     system_prompt_override=plan_system):
+                                     system_prompt_override=plan_system, model=model):
         yield event
         if event["type"] == "result":
             plan_result = event["text"]
@@ -438,7 +461,7 @@ async def stream_events_phased(
 
     if not features:
         yield {"type": "error", "text": "Could not parse feature plan — falling back to single-phase generation."}
-        async for event in stream_events(prompt, cwd=cwd, cfg=cfg, jira_key=jira_key):
+        async for event in stream_events(prompt, cwd=cwd, cfg=cfg, jira_key=jira_key, model=model):
             yield event
         return
 
@@ -492,7 +515,7 @@ async def stream_events_phased(
         )
 
         async for event in stream_events(impl_prompt, cwd=cwd, cfg=cfg, jira_key=jira_key,
-                                         system_prompt_override=impl_system):
+                                         system_prompt_override=impl_system, model=model):
             yield event
 
         completed.append(feature)
@@ -528,7 +551,7 @@ async def stream_events_phased(
     async for event in stream_events(
         f"Run tests and finalize all commits for {jira_key or 'this task'}.",
         cwd=cwd, cfg=cfg, jira_key=jira_key,
-        system_prompt_override=commit_system,
+        system_prompt_override=commit_system, model=model,
     ):
         yield event
 

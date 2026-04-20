@@ -1,7 +1,7 @@
 [project]
-name = "aisdl"
+name = "axis"
 version = "0.1.0"
-description = "AI based Software Development Lifecycle (AISDL) — Claude-powered SDLC automation with JIRA and Git"
+description = "AXIS — AI-eXecuted Implementation System: Claude-powered SDLC automation with JIRA and Git"
 authors = [
     {name = "Abhinav"}
 ]
@@ -19,15 +19,15 @@ dependencies = [
 
 
 [project.scripts]
-aisdl = "code_generator.cli:main"
-aisdl-ui = "code_generator.server:serve"
+axis = "axis.cli:main"
+axis-ui = "axis.server:serve"
 
 [tool.poetry]
-packages = [{include = "code_generator", from = "src"}]
+packages = [{include = "axis", from = "src"}]
 
 [tool.poetry.scripts]
-aisdl = "code_generator.cli:main"
-aisdl-ui = "code_generator.server:serve"
+axis = "axis.cli:main"
+axis-ui = "axis.server:serve"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

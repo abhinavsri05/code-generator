@@ -6,17 +6,27 @@ import os
 import subprocess
 import tempfile
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
+from . import sessions as sess
+from . import skills as sk
 from .agent import stream_events, stream_events_phased
 from .config import fresh_settings
 from .jira import extract_issue_key, post_comment
 
-app = FastAPI(title="AISDL — AI based Software Development Lifecycle")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    sess.mark_stale_sessions()
+    yield
+
+
+app = FastAPI(title="AXIS — AI-eXecuted Implementation System", lifespan=lifespan)
 
 # In-memory job store: job_id -> (events_queue, task, feedback_queue)
 _jobs: dict[str, tuple[asyncio.Queue, asyncio.Task, asyncio.Queue]] = {}
@@ -31,6 +41,8 @@ class GenerateRequest(BaseModel):
     context: str = ""
     attachment_ids: list[str] = []
     phased: bool = True
+    model: str = "claude-sonnet-4-6"
+    force: bool = False
 
 
 class FeedbackRequest(BaseModel):
@@ -103,9 +115,9 @@ async def _git_diff(repo_path: str, base_sha: str | None) -> str:
     return "".join(parts)
 
 
-async def _run_init(repo_path: str, queue: asyncio.Queue) -> None:
+async def _run_init(repo_path: str, emit) -> None:
     """Run `claude /init` in repo_path to ensure CLAUDE.md exists."""
-    await queue.put({"type": "info", "text": "Running claude /init…"})
+    await emit({"type": "info", "text": "Running claude /init…"})
     proc = await asyncio.create_subprocess_exec(
         "claude",
         "--print",
@@ -117,7 +129,7 @@ async def _run_init(repo_path: str, queue: asyncio.Queue) -> None:
     )
     stdout, _ = await proc.communicate(input=b"/init")
     if stdout:
-        await queue.put({"type": "info", "text": stdout.decode().strip()})
+        await emit({"type": "info", "text": stdout.decode().strip()})
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -171,6 +183,18 @@ async def generate(req: GenerateRequest):
     if not Path(req.repo_path).is_dir():
         raise HTTPException(status_code=400, detail=f"Repository path does not exist: {req.repo_path}")
 
+    # Block if another session is already running for this repo (unless forced)
+    if not req.force:
+        active = sess.active_session_for_repo(req.repo_path)
+        if active:
+            return JSONResponse(
+                status_code=409,
+                content={"detail": "session_running", "session": active},
+            )
+
+    # Delete previous sessions for this repo, then start fresh
+    sess.delete_sessions_for_repo(req.repo_path)
+
     # Build prompt, appending any uploaded attachments
     prompt = req.jira_key
     if req.context.strip():
@@ -198,40 +222,51 @@ async def generate(req: GenerateRequest):
         result = ""
         cancelled = False
         base_sha = None
+        sess.create_session(job_id, req.jira_key, req.repo_path, req.model)
+
+        async def emit(event: dict) -> None:
+            await queue.put(event)
+            sess.append_event(job_id, event)
+
         try:
-            await _run_init(req.repo_path, queue)
+            await _run_init(req.repo_path, emit)
             base_sha = await _git_head_sha(req.repo_path)
             if req.phased:
                 event_stream = stream_events_phased(
                     prompt, cwd=req.repo_path, cfg=cfg,
                     jira_key=req.jira_key, feedback_queue=feedback_queue,
+                    model=req.model,
                 )
             else:
-                event_stream = stream_events(prompt, cwd=req.repo_path, cfg=cfg, jira_key=req.jira_key)
+                event_stream = stream_events(prompt, cwd=req.repo_path, cfg=cfg,
+                                             jira_key=req.jira_key, model=req.model)
             async for event in event_stream:
-                await queue.put(event)
+                await emit(event)
                 if event["type"] == "result":
                     result = event["text"]
         except asyncio.CancelledError:
             cancelled = True
-            await queue.put({"type": "error", "text": "Job cancelled by user."})
+            await emit({"type": "error", "text": "Job cancelled by user."})
         except Exception as exc:
-            await queue.put({"type": "error", "text": str(exc)})
+            await emit({"type": "error", "text": str(exc)})
         finally:
             if not cancelled:
                 diff = await _git_diff(req.repo_path, base_sha)
                 if diff:
-                    await queue.put({"type": "diff", "text": diff})
+                    await emit({"type": "diff", "text": diff})
                 if result and cfg.jira_url and cfg.jira_api_token:
                     issue_key = extract_issue_key(req.jira_key)
                     if issue_key:
                         try:
                             loop = asyncio.get_running_loop()
                             await loop.run_in_executor(None, post_comment, issue_key, result)
-                            await queue.put({"type": "info", "text": f"Comment posted to {issue_key}."})
+                            await emit({"type": "info", "text": f"Comment posted to {issue_key}."})
                         except Exception as exc:
-                            await queue.put({"type": "error", "text": f"Could not post JIRA comment: {exc}"})
+                            await emit({"type": "error", "text": f"Could not post JIRA comment: {exc}"})
+            final_status = "cancelled" if cancelled else "done"
+            sess.update_status(job_id, final_status)
             await queue.put({"type": "done"})
+            sess.append_event(job_id, {"type": "done"})
 
     task = asyncio.create_task(_run())
     _jobs[job_id] = (queue, task, feedback_queue)
@@ -293,6 +328,68 @@ async def cancel_job(job_id: str):
     return {"cancelled": True}
 
 
+@app.get("/sessions")
+async def list_sessions():
+    return sess.list_sessions()
+
+
+@app.get("/sessions/{session_id}/events")
+async def get_session_events(session_id: str):
+    events = sess.get_events(session_id)
+    if not events and not (sess.sessions_dir() / session_id).exists():
+        raise HTTPException(status_code=404, detail="Session not found")
+    return events
+
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(session_id: str):
+    # If the job is still active, cancel it first
+    entry = _jobs.get(session_id)
+    if entry:
+        _, task, _ = entry
+        task.cancel()
+    sess.delete_session(session_id)
+    return {"deleted": True}
+
+
+@app.delete("/sessions")
+async def delete_all_sessions():
+    # Cancel any active jobs whose session is being wiped
+    for job_id in list(_jobs.keys()):
+        _, task, _ = _jobs[job_id]
+        task.cancel()
+    sess.delete_all_sessions()
+    return {"deleted": True}
+
+
+@app.get("/skills")
+async def list_skills():
+    return sk.list_skills()
+
+
+@app.post("/skills")
+async def upload_skill(file: UploadFile = File(...)):
+    data = await file.read()
+    filename = file.filename or "skill.md"
+    saved = sk.ingest_upload(filename, data)
+    if not saved:
+        raise HTTPException(status_code=400, detail="No .md files found in upload.")
+    return {"saved": saved}
+
+
+@app.delete("/skills/{name}")
+async def delete_skill(name: str):
+    if not sk.delete_skill(name):
+        raise HTTPException(status_code=404, detail="Skill not found")
+    return {"deleted": True}
+
+
+@app.delete("/skills")
+async def delete_all_skills():
+    sk.delete_all_skills()
+    return {"deleted": True}
+
+
 def serve():
     import uvicorn
-    uvicorn.run("code_generator.server:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("axis.server:app", host="0.0.0.0", port=8000, reload=False)
